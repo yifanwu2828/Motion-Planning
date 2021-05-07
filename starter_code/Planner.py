@@ -1,4 +1,5 @@
 import numpy as np
+from icecream import ic
 
 
 class MyPlanner:
@@ -7,43 +8,74 @@ class MyPlanner:
     def __init__(self, boundary, blocks):
         self.boundary = boundary
         self.blocks = blocks
+        ic(self.boundary.shape)
+        ic(self.blocks.shape)
 
-    def plan(self, start, goal):
+
+    def plan(self, start: np.ndarray, goal: np.ndarray):
         path = [start]
-        numofdirs = 26
+        num_dirs = 26
         [dX, dY, dZ] = np.meshgrid([-1, 0, 1], [-1, 0, 1], [-1, 0, 1])
         dR = np.vstack((dX.flatten(), dY.flatten(), dZ.flatten()))
         dR = np.delete(dR, 13, axis=1)
         dR = dR / np.sqrt(np.sum(dR ** 2, axis=0)) / 2.0
 
-        for _ in range(2000):
-            mindisttogoal = 1000000
+        for _ in range(2_000):
+            min_dist2goal = 1_000_000
             node = None
-            for k in range(numofdirs):
-                next = path[-1] + dR[:, k]
+            for i in range(num_dirs):
+                next_node = path[-1] + dR[:, i]
 
                 # Check if this direction is valid
-                if (next[0] < self.boundary[0, 0] or next[0] > self.boundary[0, 3] or
-                        next[1] < self.boundary[0, 1] or next[1] > self.boundary[0, 4] or
-                        next[2] < self.boundary[0, 2] or next[2] > self.boundary[0, 5]):
+                dir_cond = (
+                    next_node[0] < self.boundary[0, 0],
+                    next_node[0] > self.boundary[0, 3],
+
+                    next_node[1] < self.boundary[0, 1],
+                    next_node[1] > self.boundary[0, 4],
+
+                    next_node[2] < self.boundary[0, 2],
+                    next_node[2] > self.boundary[0, 5],
+                )
+                if any(dir_cond):
                     continue
+                # if (next_node[0] < self.boundary[0, 0] or next_node[0] > self.boundary[0, 3] or
+                #         next_node[1] < self.boundary[0, 1] or next_node[1] > self.boundary[0, 4] or
+                #         next_node[2] < self.boundary[0, 2] or next_node[2] > self.boundary[0, 5]):
+                #     continue
 
                 valid = True
                 for k in range(self.blocks.shape[0]):
-                    if (self.blocks[k, 0] < next[0] < self.blocks[k, 3] and
-                            self.blocks[k, 1] < next[1] < self.blocks[k, 4] and
-                            self.blocks[k, 2] < next[2] < self.blocks[k, 5]):
+                    cond = (
+                        self.blocks[k, 0] < next_node[0] < self.blocks[k, 3],  # [x_min, x_max]
+                        # self.blocks[k, 0] < next_node[0],
+                        # self.blocks[k, 3] > next_node[0],
+
+                        self.blocks[k, 1] < next_node[1] < self.blocks[k, 4],  # [y_min, y_max]
+                        # self.blocks[k, 1] < next_node[1],
+                        # self.blocks[k, 4] > next_node[1],
+
+                        self.blocks[k, 2] < next_node[2] < self.blocks[k, 5],  # [z_min, z_max]
+                        # self.blocks[k, 2] < next_node[2],
+                        # self.blocks[k, 5] > next_node[2],
+                    )
+                    if all(cond):
                         valid = False
                         break
+                    # if (self.blocks[k, 0] < next_node[0] < self.blocks[k, 3] and
+                    #         self.blocks[k, 1] < next_node[1] < self.blocks[k, 4] and
+                    #         self.blocks[k, 2] < next_node[2] < self.blocks[k, 5]):
+                    #     valid = False
+                    #     break
 
                 if not valid:
                     continue
 
-                # Update next node
-                disttogoal = sum((next - goal) ** 2)
-                if disttogoal < mindisttogoal:
-                    mindisttogoal = disttogoal
-                    node = next
+                # Update next_node
+                dist2goal = sum((next_node - goal) ** 2)
+                if dist2goal < min_dist2goal:
+                    min_dist2goal = dist2goal
+                    node = next_node
 
             if node is None:
                 break

@@ -1,8 +1,9 @@
-from typing import Optional
+from typing import Optional, Tuple
+import time
 
 import numpy as np
-import time
 import matplotlib.pyplot as plt
+from icecream import ic
 
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
@@ -38,30 +39,30 @@ def toc(t_start: float, name: Optional[str] = "Operation", ftime=False) -> None:
 ############################################
 
 
-def load_map(fname):
+def load_map(fname: str) -> Tuple[np.ndarray, np.ndarray]:
     """
     Loads the boundary and blocks from map file fname.
 
-    boundary = [['xmin', 'ymin', 'zmin', 'xmax', 'ymax', 'zmax','r','g','b']]
+    boundary = [['x_min', 'y_min', 'z_min', 'x_max', 'y_max', 'z_max','r','g','b']]
 
-    blocks = [['xmin', 'ymin', 'zmin', 'xmax', 'ymax', 'zmax','r','g','b'],
+    blocks = [['x_min', 'y_min', 'z_min', 'x_max', 'y_max', 'z_max','r','g','b'],
               ...,
-              ['xmin', 'ymin', 'zmin', 'xmax', 'ymax', 'zmax','r','g','b']]
+              ['x_min', 'y_min', 'z_min', 'x_max', 'y_max', 'z_max','r','g','b']]
     """
-    mapdata = np.loadtxt(
+    map_data = np.loadtxt(
         fname, dtype={
             'names': ('type', 'xmin', 'ymin', 'zmin', 'xmax', 'ymax', 'zmax', 'r', 'g', 'b'),
             'formats': ('S8', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f')
         }
     )
 
-    blockIdx = mapdata['type'] == b'block'
+    blockIdx = map_data['type'] == b'block'
 
-    boundary = mapdata[~blockIdx][
+    boundary = map_data[~blockIdx][
                    ['xmin', 'ymin', 'zmin', 'xmax', 'ymax', 'zmax', 'r', 'g', 'b']
                ].view('<f4').reshape(-1, 11)[:, 2:]
 
-    blocks = mapdata[blockIdx][
+    blocks = map_data[blockIdx][
                  ['xmin', 'ymin', 'zmin', 'xmax', 'ymax', 'zmax', 'r', 'g', 'b']
              ].view('<f4').reshape(-1, 11)[:, 2:]
     return boundary, blocks
@@ -113,24 +114,24 @@ def draw_block_list(ax, blocks):
         return h
 
 
-def runtest(mapfile, start, goal, verbose=True):
+def run_test(map_file, start, goal, verbose=True):
     """
     This function:
-    * load the provided mapfile
-    * creates a motion planner
-    * plans a path from start to goal
-    * checks whether the path is collision free and reaches the goal
-    * computes the path length as a sum of the Euclidean norm of the path segments
+        * load the provided map_file
+        * creates a motion planner
+        * plans a path from start to goal
+        * checks whether the path is collision free and reaches the goal
+        * computes the path length as a sum of the Euclidean norm of the path segments
     """
     # Load a map and instantiate a motion planner
-    boundary, blocks = load_map(mapfile)
+    boundary, blocks = load_map(map_file)
     MP = Planner.MyPlanner(boundary, blocks)  # TODO: replace this with your own planner implementation
 
     # Display the environment
     if verbose:
         fig, ax, hb, hs, hg = draw_map(boundary, blocks, start, goal)
 
-        # Call the motion planner
+    # Call the motion planner
     t0 = tic()
     path = MP.plan(start, goal)
     toc(t0, "Planning")
@@ -153,7 +154,7 @@ def test_single_cube(verbose=False):
     print('Running single cube test...\n')
     start = np.array([2.3, 2.3, 1.3])
     goal = np.array([7.0, 7.0, 5.5])
-    success, pathlength = runtest('./maps/single_cube.txt', start, goal, verbose)
+    success, pathlength = run_test('./maps/single_cube.txt', start, goal, verbose)
     print('Success: %r' % success)
     print('Path length: %d' % pathlength)
     print('\n')
@@ -163,7 +164,7 @@ def test_maze(verbose=False):
     print('Running maze test...\n')
     start = np.array([0.0, 0.0, 1.0])
     goal = np.array([12.0, 12.0, 5.0])
-    success, pathlength = runtest('./maps/maze.txt', start, goal, verbose)
+    success, pathlength = run_test('./maps/maze.txt', start, goal, verbose)
     print('Success: %r' % success)
     print('Path length: %d' % pathlength)
     print('\n')
@@ -173,7 +174,7 @@ def test_window(verbose=False):
     print('Running window test...\n')
     start = np.array([0.2, -4.9, 0.2])
     goal = np.array([6.0, 18.0, 3.0])
-    success, pathlength = runtest('./maps/window.txt', start, goal, verbose)
+    success, pathlength = run_test('./maps/window.txt', start, goal, verbose)
     print('Success: %r' % success)
     print('Path length: %d' % pathlength)
     print('\n')
@@ -183,7 +184,7 @@ def test_tower(verbose=False):
     print('Running tower test...\n')
     start = np.array([2.5, 4.0, 0.5])
     goal = np.array([4.0, 2.5, 19.5])
-    success, pathlength = runtest('./maps/tower.txt', start, goal, verbose)
+    success, pathlength = run_test('./maps/tower.txt', start, goal, verbose)
     print('Success: %r' % success)
     print('Path length: %d' % pathlength)
     print('\n')
@@ -193,7 +194,7 @@ def test_flappy_bird(verbose=False):
     print('Running flappy bird test...\n')
     start = np.array([0.5, 2.5, 5.5])
     goal = np.array([19.0, 2.5, 5.5])
-    success, pathlength = runtest('./maps/flappy_bird.txt', start, goal, verbose)
+    success, pathlength = run_test('./maps/flappy_bird.txt', start, goal, verbose)
     print('Success: %r' % success)
     print('Path length: %d' % pathlength)
     print('\n')
@@ -203,7 +204,7 @@ def test_room(verbose=False):
     print('Running room test...\n')
     start = np.array([1.0, 5.0, 1.5])
     goal = np.array([9.0, 7.0, 1.5])
-    success, pathlength = runtest('./maps/room.txt', start, goal, verbose)
+    success, pathlength = run_test('./maps/room.txt', start, goal, verbose)
     print('Success: %r' % success)
     print('Path length: %d' % pathlength)
     print('\n')
@@ -213,7 +214,7 @@ def test_monza(verbose=False):
     print('Running monza test...\n')
     start = np.array([0.5, 1.0, 4.9])
     goal = np.array([3.8, 1.0, 0.1])
-    success, pathlength = runtest('./maps/monza.txt', start, goal, verbose)
+    success, pathlength = run_test('./maps/monza.txt', start, goal, verbose)
     print('Success: %r' % success)
     print('Path length: %d' % pathlength)
     print('\n')
