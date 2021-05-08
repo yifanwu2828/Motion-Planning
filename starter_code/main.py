@@ -1,14 +1,15 @@
 from typing import Optional, Tuple
 import time
 
+import fcl
 import numpy as np
-import matplotlib.pyplot as plt
 from icecream import ic
-
+import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-import Planner
 
+import Planner
+import utils
 plt.ion()
 
 
@@ -77,13 +78,19 @@ def draw_map(boundary, blocks, start, goal):
     hb = draw_block_list(ax, blocks)
     hs = ax.plot(start[0:1], start[1:2], start[2:], 'ro', markersize=7, markeredgecolor='k')
     hg = ax.plot(goal[0:1], goal[1:2], goal[2:], 'go', markersize=7, markeredgecolor='k')
+
+    # draw centroid of each block
+    for blk in blocks:
+        centroid = utils.get_centroid(block=blk)
+        ax.plot(centroid[0], centroid[1], centroid[2], 'bo', markersize=7, markeredgecolor='k')
+
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
     ax.set_xlim(boundary[0, 0], boundary[0, 3])
     ax.set_ylim(boundary[0, 1], boundary[0, 4])
     ax.set_zlim(boundary[0, 2], boundary[0, 5])
-    return fig, ax, hb, hs, hg
+    return fig, ax, hb, hs, hg,
 
 
 def draw_block_list(ax, blocks):
@@ -94,9 +101,11 @@ def draw_block_list(ax, blocks):
                  dtype='float'
                  )
     f = np.array([[0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7], [0, 1, 2, 3], [4, 5, 6, 7]])
-    clr = blocks[:, 6:] / 255
-    n = blocks.shape[0]
-    d = blocks[:, 3:6] - blocks[:, :3]
+
+    clr = blocks[:, 6:] / 255  # RGB color
+    n = blocks.shape[0]     # num of blocks
+    d = blocks[:, 3:6] - blocks[:, :3]  # (x_len, y_len, z_len)
+
     vl = np.zeros((8 * n, 3))
     fl = np.zeros((6 * n, 4), dtype='int64')
     fcl = np.zeros((6 * n, 3))
@@ -218,6 +227,9 @@ def test_monza(verbose=False):
     print('Success: %r' % success)
     print('Path length: %d' % pathlength)
     print('\n')
+
+
+
 
 
 if __name__ == "__main__":
