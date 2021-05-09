@@ -5,10 +5,10 @@ import time
 from collections import OrderedDict
 
 import numpy as np
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt; plt.ion()
 from icecream import ic
 
-import Planner
+from Planner import MyPlanner
 import utils
 
 
@@ -24,7 +24,7 @@ def run_test(map_file, start, goal, verbose=True):
     # Load a map and instantiate a motion planner
     boundary, blocks = utils.load_map(map_file)
     # TODO: replace this with your own planner implementation
-    MP = Planner.MyPlanner(boundary, blocks)
+    MP = MyPlanner(boundary, blocks)
 
     # Display the environment
     if verbose:
@@ -52,9 +52,8 @@ def run_test(map_file, start, goal, verbose=True):
 
 if __name__ == '__main__':
     print(np.__version__)
-    path = './maps/'
-    mapDict = {file.split('.')[0]: os.path.join(path, file) for file in os.listdir(path)}
-    ic(mapDict)
+    map_path = './maps/'
+    mapDict = {file.split('.')[0]: os.path.join(map_path, file) for file in os.listdir(map_path)}
 
     # start pos and goal
     start = np.array([2.3, 2.3, 1.3])
@@ -67,3 +66,4 @@ if __name__ == '__main__':
     ic(boundary)
     grid_world, grid_start, grid_goal = utils.make_grid_env(map_file, start, goal, res=0.1)
     ic(grid_start)
+

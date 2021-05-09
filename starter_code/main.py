@@ -93,6 +93,9 @@ def run_test(map_file, start, goal, verbose=True):
     boundary, blocks = utils.load_map(map_file)
     MP = Planner.MyPlanner(boundary, blocks)  # TODO: replace this with your own planner implementation
 
+    # Init collision obj
+    MP.init_collision_objects(blocks, start, goal)
+
     # Display the environment
     if verbose:
         fig, ax, hb, hs, hg = utils.draw_map(boundary, blocks, start, goal)
@@ -139,3 +142,11 @@ if __name__ == "__main__":
 
     test_room(True)
     plt.show(block=True)
+
+    # print('Running single cube test...\n')
+    # start = np.array([2.3, 2.3, 1.3])
+    # goal = np.array([7.0, 7.0, 5.5])
+    # success, pathlength = run_test('./maps/single_cube.txt', start, goal, verbose=True)
+    # print('Success: %r' % success)
+    # print('Path length: %d' % pathlength)
+    # print('\n')
