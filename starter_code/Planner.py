@@ -13,9 +13,11 @@ class MyPlanner(object):
         self.boundary = boundary
         self.blocks = blocks
 
+        utils.showXYZboundary(self.boundary)
+
         self.start = None
         self.goal = None
-        self.rad = 0
+        self.rad = 0.0
 
         self.params = {}
         self.geoms = []
@@ -23,7 +25,7 @@ class MyPlanner(object):
         self.geom_id_to_name = None
         self.manager = None
 
-    def init_collision_objects(self, start, goal=None, rad: int = 0.05):
+    def init_collision_objects(self, start, goal=None, rad: int = 0.01):
         """
         Create object assume start & goal are sphere, blocks are box
         """
@@ -72,11 +74,13 @@ class MyPlanner(object):
 
         [dX, dY, dZ] = np.meshgrid([-1, 0, 1], [-1, 0, 1], [-1, 0, 1])
         dR = np.vstack((dX.flatten(), dY.flatten(), dZ.flatten()))
+        # Remove (0,0,0)
         dR = np.delete(dR, 13, axis=1)
         dR = dR / np.sqrt(np.sum(dR ** 2, axis=0)) / 2.0
 
-        for _ in range(2_000):
-            min_dist2goal = 1_000_000
+        for _ in range(5_000):
+            # min_dist2goal = 1_000_000
+            min_dist2goal = np.inf
             node = None
             for i in range(num_dirs):
                 # current node -> next node
@@ -115,7 +119,7 @@ class MyPlanner(object):
 
     def isPointOutBound(self, next_point):
         # Assuming point without init start as a collision object
-        next_point = (next_point + self.rad).reshape(-1)
+        next_point = next_point.reshape(-1)
         return any([
             next_point[0] <= self.boundary[0, 0],  # x_min
             next_point[0] >= self.boundary[0, 3],  # x_max
@@ -128,7 +132,7 @@ class MyPlanner(object):
         ])
 
     def isPointInsideAABB(self, k, next_point):
-        next_point = (next_point + self.rad).reshape(-1)
+        next_point = next_point.reshape(-1)
         return all([
             self.blocks[k, 0] <= next_point[0] <= self.blocks[k, 3],  # [x_min, x_max]
             self.blocks[k, 1] <= next_point[1] <= self.blocks[k, 4],  # [y_min, y_max]
