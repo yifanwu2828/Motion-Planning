@@ -1,7 +1,7 @@
-from typing import Optional, List, Union, Callable
+from typing import Tuple, List, Optional,  Union, Callable
 
 import numpy as np
-from numba import jit, njit
+from numba import jit
 from pqdict import PQDict
 import fcl
 from tqdm import tqdm
@@ -15,7 +15,6 @@ class MyPlanner(object):
     def __init__(self, boundary, blocks):
 
         # Init boundary and blocks
-
         self.boundary: np.ndarray = boundary
         self.blocks: np.ndarray = blocks
 
@@ -25,12 +24,12 @@ class MyPlanner(object):
         # Init start and goal pos
         self.start_pos = None
         self.goal_pos = None
-        self.res: float = 0.1
+        self.res = None
 
         # Init start and goal collision obj
         self.start_obj = None
         self.goal_obj = None
-        self.rad: float = None
+        self.rad = None
 
 
         # Init AABBTree manager for one to many collision checking
@@ -40,12 +39,19 @@ class MyPlanner(object):
         # Geometry
         self.geoms = []
         # mapping from id to obj and name
-        self.geom_id_to_obj: dict = None
-        self.geom_id_to_name: dict = None
+        self.geom_id_to_obj = {}
+        self.geom_id_to_name = {}
 
-        # Grid
+        # 3D Grid
         self.world = None
-        self.PARENT= None
+        self.grid_block = None
+        self.grid_start = None
+        self.grid_goal = None
+        self.PARENT = {}
+        self.cost_grid = None
+        self.path = None
+        self.grid_path = None
+        self.max_num_node = None
 
     def init_collision_objects(
             self,
@@ -148,19 +154,31 @@ class MyPlanner(object):
 
         return np.array(path)
 
-    def A_star(self, map_path: str, start: np.ndarray, goal: np.ndarray, eps: float = 1,  res: float = 0.1):
+    def A_star(
+            self,
+            start: np.ndarray,
+            goal: np.ndarray,
+            eps: float = 1,
+            res: float = 0.1,
+            distType: int = 2,
+    ):
         """Epsilon-Consistent A* Algorithm"""
         assert isinstance(eps, float) or isinstance(eps, int)
         assert eps >= 1, "eps should >= 1"
-        grid_world: np.ndarray
-        grid_block: np.ndarray
-        grid_start: np.ndarray
-        grid_goal: np.ndarray
 
-        boundary, blocks = utils.load_map(map_path)
+        # Convert map in continuous space to discreet 3D Grid
+        grid_env = utils.make_grid_env(self.boundary, self.blocks, start, goal, res=res)
+        grid_world, grid_block, grid_start, grid_goal = grid_env
 
-        grid_world, grid_block, grid_start, grid_goal = utils.make_grid_env(boundary, blocks, start, goal, res=res)
-        self.world = grid_world
+        self.world: np.ndarray = grid_world
+        self.grid_block: np.ndarray = grid_block
+        self.grid_start: np.ndarray = grid_start
+        self.grid_goal: np.ndarray = grid_goal
+
+        print("---------------------------")
+        print(f"Grid_x_boundary: (0, {grid_world.shape[0]})")
+        print(f"Grid_y_boundary: (0, {grid_world.shape[1]})")
+        print(f"Grid_z_boundary: (0, {grid_world.shape[2]})")
 
         # g_i = infinity for all i ∈ V\{s}
         cost_grid = np.empty_like(grid_world)
@@ -175,6 +193,7 @@ class MyPlanner(object):
 
         # Initialize OPEN  with the start coords and its cost
         OPEN = PQDict({s: 0.0})  # OPEN <- {s}
+
         # Initialize the CLOSED
         CLOSED = PQDict()
 
@@ -185,11 +204,11 @@ class MyPlanner(object):
         max_num_node = 0
         while e not in CLOSED.keys():
             ''' util func'''
-            itr += 1
+
             if len(OPEN) > max_num_node:
                 max_num_node = len(OPEN)
-            if itr % 50_000 == 0:
-                print(max_num_node)
+            if itr % 100_000 == 0:
+                print(len(CLOSED))
 
             # Remove i with the  smallest f_i := g_i + h_i from OPEN
             state_i: tuple
@@ -216,11 +235,11 @@ class MyPlanner(object):
 
                         if g_j > (g_i + c_ij):
                             # Update Children's Cost.
-                            cost_grid[state_j] = (g_i + c_ij)
+                            cost_grid[state_j] = g_i + c_ij
                             # Record i as Parent of Child node j
                             self.PARENT[state_j] = state_i  # Parent(j) <- i
 
-                            h_j = self.heuristic_fn(j, grid_goal, dist_type=1)
+                            h_j = self.heuristic_fn(j, grid_goal, dist_type=distType)
                             # h_j = self.heuristic_fn(j, grid_goal, fn=self.custom_h_fn)
                             f_j = g_j + eps * h_j
                             if state_j in OPEN.keys():
@@ -229,9 +248,14 @@ class MyPlanner(object):
                             else:
                                 # Add {j} to OPEN
                                 OPEN.additem(state_j, f_j)
-        print("Planning Finished Reconstruct Path Now")
-        path = self.path_recon(grid_start, grid_goal, res)
-        return path
+            itr += 1
+        print("Planning Finished. Start Reconstructing Path Now")
+        path, grid_path = self.path_recon(grid_start, grid_goal, res)
+        self.path = path
+        self.grid_path = grid_path
+        self.cost_grid = cost_grid
+        self.max_num_node = max_num_node
+        return path, grid_path, cost_grid, max_num_node
 
     def isPointOutBound(self, next_point: np.ndarray) -> bool:
         # Assuming point without init start as a collision object
@@ -359,7 +383,7 @@ class MyPlanner(object):
             self,
             node: np.ndarray,
             goal: np.ndarray,
-            dist_type: int = 2,
+            dist_type: Union[str, int] = 2,
             fn: Optional[Callable] = None,
     ) -> np.ndarray:
         assert isinstance(node, np.ndarray)
@@ -394,28 +418,30 @@ class MyPlanner(object):
 
     @staticmethod
     @jit(nopython=True, cache=True, fastmath=True)
-    def euclidean_distance(node, goal):
+    def euclidean_distance(node, goal) -> np.ndarray:
         dist = np.sqrt(np.sum((node - goal) ** 2))
         return dist
 
     @staticmethod
-    def custom_h_fn(node, goal):
+    def custom_h_fn(node, goal) -> np.ndarray:
         dist = np.linalg.norm((node - goal), ord=np.inf) - 0.7 * np.linalg.norm((node - goal), ord=-np.inf)
         return dist
 
-    def path_recon(self, grid_start: np.ndarray, grid_goal: np.ndarray, res: float):
+    def path_recon(self, grid_start: np.ndarray, grid_goal: np.ndarray, res: float) -> Tuple[np.ndarray, np.ndarray]:
         """
         Reconstruct the path from start to goal in 3D Grid and convert back to original map
         :param grid_start:
         :param grid_goal:
         :param res: resolution
         """
-        a = grid_goal.astype(np.int32)
+        e = grid_goal.astype(np.int32)
         path = grid_goal.astype(np.int32)
-        while not np.array_equal(a, grid_start):
-            b = np.array(self.PARENT[tuple(a)], dtype=np.int32)
-            path = np.vstack((path, b))
-            a = b
+        path = grid_goal.astype(np.int32)
+        while not np.array_equal(e, grid_start):
+            prev = np.array(self.PARENT[tuple(e)], dtype=np.int32)
+            path = np.vstack((path, prev))
+            e = prev
+        grid_path = np.flip(path, axis=0)
         path = (path - 1) * res + self.boundary[0, :3]
         path = np.flip(path, axis=0)
-        return path
+        return path, grid_path
