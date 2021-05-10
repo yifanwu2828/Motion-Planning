@@ -1,6 +1,8 @@
-from typing import Optional, List
+from typing import Optional, List, Union, Callable
 
 import numpy as np
+from numba import jit, njit
+from pqdict import PQDict
 import fcl
 from tqdm import tqdm
 from icecream import ic
@@ -13,6 +15,7 @@ class MyPlanner(object):
     def __init__(self, boundary, blocks):
 
         # Init boundary and blocks
+
         self.boundary: np.ndarray = boundary
         self.blocks: np.ndarray = blocks
 
@@ -40,13 +43,16 @@ class MyPlanner(object):
         self.geom_id_to_obj: dict = None
         self.geom_id_to_name: dict = None
 
+        # Grid
+        self.world = None
+        self.PARENT= None
 
     def init_collision_objects(
             self,
             blocks: np.ndarray,
             start: np.ndarray,
             goal: np.ndarray,
-            rad: float = 0.05
+            rad: float = 0.005
     ) -> None:
         """
         Create object assume start & goal are sphere, blocks are box,
@@ -100,7 +106,7 @@ class MyPlanner(object):
         dR = np.vstack((dX.flatten(), dY.flatten(), dZ.flatten()))
         # Remove (0,0,0)
         dR = np.delete(dR, 13, axis=1)
-        dR = dR / np.sqrt(np.sum(dR ** 2, axis=0)) / 2.0
+        dR = dR / np.sqrt(np.sum(dR ** 2, axis=0)) / 2.0 * 0.5
 
         for _ in tqdm(range(5_000)):
             min_dist2goal = np.inf
@@ -142,6 +148,91 @@ class MyPlanner(object):
 
         return np.array(path)
 
+    def A_star(self, map_path: str, start: np.ndarray, goal: np.ndarray, eps: float = 1,  res: float = 0.1):
+        """Epsilon-Consistent A* Algorithm"""
+        assert isinstance(eps, float) or isinstance(eps, int)
+        assert eps >= 1, "eps should >= 1"
+        grid_world: np.ndarray
+        grid_block: np.ndarray
+        grid_start: np.ndarray
+        grid_goal: np.ndarray
+
+        boundary, blocks = utils.load_map(map_path)
+
+        grid_world, grid_block, grid_start, grid_goal = utils.make_grid_env(boundary, blocks, start, goal, res=res)
+        self.world = grid_world
+
+        # g_i = infinity for all i ∈ V\{s}
+        cost_grid = np.empty_like(grid_world)
+        cost_grid.fill(np.inf)
+
+        # coords of start and goal as tuple
+        s = tuple(grid_start)
+        e = tuple(grid_goal)
+
+        # g_s = 0
+        cost_grid[s] = 0.0
+
+        # Initialize OPEN  with the start coords and its cost
+        OPEN = PQDict({s: 0.0})  # OPEN <- {s}
+        # Initialize the CLOSED
+        CLOSED = PQDict()
+
+        # Initialize a Parent Dict will be used reconstruct the path
+        self.PARENT = {}
+
+        itr = 0
+        max_num_node = 0
+        while e not in CLOSED.keys():
+            ''' util func'''
+            itr += 1
+            if len(OPEN) > max_num_node:
+                max_num_node = len(OPEN)
+            if itr % 50_000 == 0:
+                print(max_num_node)
+
+            # Remove i with the  smallest f_i := g_i + h_i from OPEN
+            state_i: tuple
+            f_i: np.ndarray
+            state_i, f_i = OPEN.popitem()
+
+            # Insert 'i' (state, cost) pair into CLOSED
+            CLOSED.additem(state_i, f_i)
+
+            # for j ∈ Children(i) and j ∈/ CLOSED
+            i = np.array(state_i)
+            child_i = self.child_of(i.flatten())
+            for j in child_i:
+                state_j = tuple(j)
+                if state_j in CLOSED:
+                    continue
+                # if child node_j in bound it is not occupied
+                if self.is_inbound(j):
+                    # if child node_j is not occupied
+                    if grid_world[state_j] == 0:
+                        g_j = cost_grid[state_j]
+                        g_i = cost_grid[state_i]
+                        c_ij = self.cost(i, j)
+
+                        if g_j > (g_i + c_ij):
+                            # Update Children's Cost.
+                            cost_grid[state_j] = (g_i + c_ij)
+                            # Record i as Parent of Child node j
+                            self.PARENT[state_j] = state_i  # Parent(j) <- i
+
+                            h_j = self.heuristic_fn(j, grid_goal, dist_type=1)
+                            # h_j = self.heuristic_fn(j, grid_goal, fn=self.custom_h_fn)
+                            f_j = g_j + eps * h_j
+                            if state_j in OPEN.keys():
+                                # Update Update priority of j
+                                OPEN.updateitem(state_j, f_j)
+                            else:
+                                # Add {j} to OPEN
+                                OPEN.additem(state_j, f_j)
+        print("Planning Finished Reconstruct Path Now")
+        path = self.path_recon(grid_start, grid_goal, res)
+        return path
+
     def isPointOutBound(self, next_point: np.ndarray) -> bool:
         # Assuming point without init start as a collision object
         next_point = next_point.reshape(-1)
@@ -169,7 +260,7 @@ class MyPlanner(object):
 
         current_obj = fcl.CollisionObject(fcl.Sphere(self.rad), fcl.Transform(node))
 
-        req = fcl.CollisionRequest(num_max_contacts=1_000, enable_contact=True)
+        req = fcl.CollisionRequest(num_max_contacts=100, enable_contact=True)
         cdata = fcl.CollisionData(request=req, result=fcl.CollisionResult())
         self.manager.collide(current_obj, cdata, fcl.defaultCollisionCallback)
         objs_in_collision = set()
@@ -224,4 +315,107 @@ class MyPlanner(object):
                 break
         return motion_collide
 
+    @staticmethod
+    def child_of(node: np.ndarray) -> np.ndarray:
+        assert isinstance(node, np.ndarray)
+        assert node.ndim == 1
+        [dX, dY, dZ] = np.meshgrid([-1, 0, 1], [-1, 0, 1], [-1, 0, 1])
+        dR = np.vstack((dX.flatten(), dY.flatten(), dZ.flatten()))
+        # Remove (0,0,0)
+        dR = np.delete(dR, 13, axis=1)
+        children = node.reshape(3, -1) + dR
+        return children.T
 
+    def is_inbound(self, node: np.ndarray) -> bool:
+        assert isinstance(node, np.ndarray)
+        if node.ndim > 1:
+            node.reshape(-1)
+        cond = (
+            0 <= node[0] < self.world.shape[0],
+            0 <= node[1] < self.world.shape[1],
+            0 <= node[2] < self.world.shape[2],
+        )
+        return all(cond)
+
+    def is_free(self, node: np.ndarray) -> bool:
+        assert isinstance(node, np.ndarray)
+        if node.ndim > 1:
+            node.reshape(-1)
+        return self.world[tuple(node)] == 0
+
+    @staticmethod
+    @jit(nopython=True, cache=True, fastmath=True)
+    def cost(i: np.ndarray, j: np.ndarray) -> np.ndarray:
+        """Define the cost form node i to node j as Euclidean Distance"""
+        # assert isinstance(i, np.ndarray)
+        # assert isinstance(j, np.ndarray)
+        # assert i.ndim == j.ndim and i.size == j.size, "Ensure array have same shape"
+        # return np.linalg.norm((i - j), ord=2)
+        
+        # use following line instead to get speed up from numba
+        return np.sqrt(np.sum((i - j)**2))
+
+    def heuristic_fn(
+            self,
+            node: np.ndarray,
+            goal: np.ndarray,
+            dist_type: int = 2,
+            fn: Optional[Callable] = None,
+    ) -> np.ndarray:
+        assert isinstance(node, np.ndarray)
+        assert isinstance(goal, np.ndarray)
+        assert node.ndim == goal.ndim, "Ensure array have same dimension"
+        assert node.size == goal.size, "Ensure array have same size"
+        typeDict = {
+            1: "manhattan",
+            2: "euclidean",
+            3: "diagonal",
+            4: "octile",
+        }
+        if fn is not None:
+            dist = fn(node, goal)
+        else:
+            if dist_type == 1 or dist_type == typeDict[1]:
+                ''' Manhattan Distance '''
+                dist = np.linalg.norm((node - goal), ord=1)
+            elif dist_type == 2 or dist_type == typeDict[2]:
+                ''' Euclidean Distance '''
+                # dist = np.linalg.norm((node - goal), ord=2)
+                dist = self.euclidean_distance(node, goal)
+            elif dist_type == 3 or dist_type == typeDict[3]:
+                ''' Diagonal Distance '''
+                dist = np.linalg.norm((node - goal), ord=np.inf)
+            elif dist_type == 4 or dist_type == typeDict[4]:
+                ''' Octile Distance '''
+                dist = np.linalg.norm((node - goal), ord=np.inf) - np.linalg.norm((node - goal), ord=-np.inf)
+            else:
+                raise ValueError("Please provide valid dist_type or custom heuristic function")
+        return dist
+
+    @staticmethod
+    @jit(nopython=True, cache=True, fastmath=True)
+    def euclidean_distance(node, goal):
+        dist = np.sqrt(np.sum((node - goal) ** 2))
+        return dist
+
+    @staticmethod
+    def custom_h_fn(node, goal):
+        dist = np.linalg.norm((node - goal), ord=np.inf) - 0.7 * np.linalg.norm((node - goal), ord=-np.inf)
+        return dist
+
+    def path_recon(self, grid_start: np.ndarray, grid_goal: np.ndarray, res: float):
+        """
+        Reconstruct the path from start to goal in 3D Grid and convert back to original map
+        :param grid_start:
+        :param grid_goal:
+        :param res: resolution
+        """
+        a = grid_goal.astype(np.int32)
+        path = grid_goal.astype(np.int32)
+        while not np.array_equal(a, grid_start):
+            b = np.array(self.PARENT[tuple(a)], dtype=np.int32)
+            path = np.vstack((path, b))
+            a = b
+        path = (path - 1) * res + self.boundary[0, :3]
+        path = np.flip(path, axis=0)
+        return path

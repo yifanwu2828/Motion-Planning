@@ -1,4 +1,5 @@
 import re
+import sys
 
 import numpy as np
 from icecream import ic
@@ -80,7 +81,7 @@ def test_monza(verbose=False):
     print('\n')
 
 
-def run_test(map_file, start, goal, verbose=True):
+def run_test(map_file, start, goal, render=True):
     """
     This function:
         * load the provided map_file
@@ -97,7 +98,7 @@ def run_test(map_file, start, goal, verbose=True):
     MP.init_collision_objects(blocks, start, goal)
 
     # Display the environment
-    if verbose:
+    if render:
         fig, ax, hb, hs, hg = utils.draw_map(boundary, blocks, start, goal)
 
     # Call the motion planner
@@ -107,9 +108,11 @@ def run_test(map_file, start, goal, verbose=True):
     utils.toc(t0, f"Planning {test_name}")
 
     # Plot the path
-    if verbose:
-        ax.plot(path[:, 0], path[:, 1], path[:, 2], 'r-')
-
+    if render:
+        try:
+            ax.plot(path[:, 0], path[:, 1], path[:, 2], 'r-')
+        except KeyboardInterrupt:
+            sys.exit(0)
     # TODO: You should verify whether the path actually intersects any of the obstacles in continuous space
     # TODO: You can implement your own algorithm or use an existing library for segment and
     #       axis-aligned bounding box (AABB) intersection

@@ -77,7 +77,7 @@ def draw_map(
         - start and goal points
     * Add visualization for centroids of blocks
     """
-    fig = plt.figure()
+    fig = plt.figure(figsize=(40, 30))
     ax = fig.add_subplot(111, projection='3d')
     hb = draw_block_list(ax, blocks)
     hs = ax.plot(start[0:1], start[1:2], start[2:], 'ro', markersize=7, markeredgecolor='k')
@@ -160,22 +160,20 @@ def showXYZboundary(boundary):
 ############################################
 ############################################
 
-def make_grid_env(map_file, start, goal, res=0.1):
+def make_grid_env(boundary, blocks, start, goal, res=0.1):
     """
     Discretize the world into 3D Grid
         Occupied cells are marked with 1 and free cells are marked as zero
-    :param map_file: path to load map info
+    :param boundary: boundary
+    :param blocks: obstacles
     :param start: start position in (x, y, z)
     :param goal: goal position in (x, y, z)
     :param res: resolution
     :return: 3D Grid map, discrete start pos, discrete goal pos
     """
-    # Load map info
-    boundary, blocks = load_map(map_file)
-
     # Discretize start and goal
-    grid_start = np.ceil(((start - boundary[0, 0:3]) / res) + 1)
-    grid_goal = np.ceil(((goal - boundary[0, 0:3]) / res) + 1)
+    grid_start = np.ceil(((start - boundary[0, 0:3]) / res) + 1).astype('int')
+    grid_goal = np.ceil(((goal - boundary[0, 0:3]) / res) + 1).astype('int')
 
     # Discrete grid dimensions.
     num_x = np.ceil(int(((boundary[0, 3] - boundary[0, 0]) / res) + 1)).astype('int')
@@ -189,11 +187,12 @@ def make_grid_env(map_file, start, goal, res=0.1):
     grid_world[0, :, :] = 1
     grid_world[:, 0, :] = 1
     grid_world[:, :, 0] = 1
+    # grid_boundary = np.vstack([grid_world[0, :, :], grid_world[:, 0, :], grid_world[:, :, 0]])
 
     # Convert blocks to grid coordinates
     blocks[:, 0:3] -= boundary[0, 0:3]
     blocks[:, 3:6] -= boundary[0, 0:3]
-    grid_block = np.ceil((blocks / res) + 1).astype(np.int8)
+    grid_block = np.ceil((blocks / res) + 1).astype('int')
 
     # grid_world = np.zeros((6,6,6))
 
@@ -204,7 +203,7 @@ def make_grid_env(map_file, start, goal, res=0.1):
             grid_block[i, 1] - 1: grid_block[i, 4] + 1,  # [y_min y_max]
             grid_block[i, 2] - 1: grid_block[i, 5] + 1,  # [z_min z_max]
         ] = 1
-    return grid_world, grid_start, grid_goal
+    return grid_world, grid_block, grid_start, grid_goal
 
 
 
