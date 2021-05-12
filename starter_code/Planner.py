@@ -1,4 +1,4 @@
-from typing import Tuple, List, Optional,  Union, Callable
+from typing import Tuple, List, Optional, Union, Callable
 
 import numpy as np
 from numba import jit
@@ -19,13 +19,16 @@ class MyPlanner(object):
         self.blocks: np.ndarray = blocks
 
         # Visualize the boundary in original and continuous obs space
-        utils.showXYZboundary(self.boundary)
+        # utils.showXYZboundary(self.boundary)
 
         # Init start and goal pos
         self.start_pos = None
         self.goal_pos = None
         self.res = None
 
+        #####################
+        #       FCL         #
+        #####################
         # Init start and goal collision obj
         self.start_obj = None
         self.goal_obj = None
@@ -42,11 +45,18 @@ class MyPlanner(object):
         self.geom_id_to_obj = {}
         self.geom_id_to_name = {}
 
-        # 3D Grid
-        self.world = None
+        #################################
+        # 3D Grid, boundary, and blocks #
+        #################################
+        self.grid_world = None
+        self.grid_boundary = None
         self.grid_block = None
         self.grid_start = None
         self.grid_goal = None
+        #####################
+        #       A*          #
+        #####################
+        self.eps = None
         self.PARENT = {}
         self.cost_grid = None
         self.path = None
@@ -58,7 +68,7 @@ class MyPlanner(object):
             blocks: np.ndarray,
             start: np.ndarray,
             goal: np.ndarray,
-            rad: float = 0.005
+            rad: float,
     ) -> None:
         """
         Create object assume start & goal are sphere, blocks are box,
@@ -98,7 +108,7 @@ class MyPlanner(object):
         self.manager.registerObjects(objs)
         self.manager.setup()
 
-    def plan(self, start: np.ndarray, goal: np.ndarray,):
+    def greedy_plan(self, start: np.ndarray, goal: np.ndarray):
         self.start_pos = start
         self.goal_pos = goal
         # start pos
@@ -158,19 +168,32 @@ class MyPlanner(object):
             self,
             start: np.ndarray,
             goal: np.ndarray,
+            rad: float,
             eps: float = 1,
             res: float = 0.1,
             distType: int = 2,
+            h_fn=None,
     ):
-        """Epsilon-Consistent A* Algorithm"""
+        """
+        Epsilon-Consistent A* Algorithm in 3-D Euclidean space
+        :param start: start position
+        :param goal:  goal position
+        :param rad: radius of angent
+        :param eps: epsilon
+        :param res: resolution
+        :param distType: type of distance as heuristic
+        :param h_fn: custom heuristic function overwrite self.custom_h_fn
+        """
         assert isinstance(eps, float) or isinstance(eps, int)
         assert eps >= 1, "eps should >= 1"
-
-        # Convert map in continuous space to discreet 3D Grid
+        self.eps = eps
+        self.rad = rad
+        # Convert map in continuous space to Discrete 3D Grid
         grid_env = utils.make_grid_env(self.boundary, self.blocks, start, goal, res=res)
-        grid_world, grid_block, grid_start, grid_goal = grid_env
+        grid_world, grid_boundary, grid_block, grid_start, grid_goal = grid_env
 
-        self.world: np.ndarray = grid_world
+        self.grid_world: np.ndarray = grid_world
+        self.grid_boundary: np.ndarray = grid_boundary
         self.grid_block: np.ndarray = grid_block
         self.grid_start: np.ndarray = grid_start
         self.grid_goal: np.ndarray = grid_goal
@@ -179,6 +202,16 @@ class MyPlanner(object):
         print(f"Grid_x_boundary: (0, {grid_world.shape[0]})")
         print(f"Grid_y_boundary: (0, {grid_world.shape[1]})")
         print(f"Grid_z_boundary: (0, {grid_world.shape[2]})")
+        print(f"Grid_start: {grid_start}")
+        print(f"Grid_goal: {grid_goal}")
+
+        # Init collision objs for discrete collision checking
+        self.init_collision_objects(
+            blocks=grid_block,
+            start=grid_start,
+            goal=grid_goal,
+            rad=rad,
+        )
 
         # g_i = infinity for all i ∈ V\{s}
         cost_grid = np.empty_like(grid_world)
@@ -203,8 +236,7 @@ class MyPlanner(object):
         itr = 0
         max_num_node = 0
         while e not in CLOSED.keys():
-            ''' util func'''
-
+            ''' util func to know the progress'''
             if len(OPEN) > max_num_node:
                 max_num_node = len(OPEN)
             if itr % 100_000 == 0:
@@ -229,18 +261,25 @@ class MyPlanner(object):
                 if self.is_inbound(j):
                     # if child node_j is not occupied
                     if grid_world[state_j] == 0:
+                        # Discrete collision checking
+                        if self.is_static_collide(j, rad=self.rad):
+                            continue
                         g_j = cost_grid[state_j]
                         g_i = cost_grid[state_i]
                         c_ij = self.cost(i, j)
 
+                        # If find a shorter path
                         if g_j > (g_i + c_ij):
                             # Update Children's Cost.
                             cost_grid[state_j] = g_i + c_ij
                             # Record i as Parent of Child node j
                             self.PARENT[state_j] = state_i  # Parent(j) <- i
 
-                            h_j = self.heuristic_fn(j, grid_goal, dist_type=distType)
-                            # h_j = self.heuristic_fn(j, grid_goal, fn=self.custom_h_fn)
+                            if h_fn is not None:
+                                h_j = self.heuristic_fn(j, grid_goal, fn=self.custom_h_fn)
+                            else:
+                                h_j = self.heuristic_fn(j, grid_goal, dist_type=distType)
+
                             f_j = g_j + eps * h_j
                             if state_j in OPEN.keys():
                                 # Update Update priority of j
@@ -258,6 +297,9 @@ class MyPlanner(object):
         return path, grid_path, cost_grid, max_num_node
 
     def isPointOutBound(self, next_point: np.ndarray) -> bool:
+        """
+        Check is the position out of bounds in continuous state space and assume agent is a point
+        """
         # Assuming point without init start as a collision object
         next_point = next_point.reshape(-1)
         return any([
@@ -272,6 +314,9 @@ class MyPlanner(object):
         ])
 
     def isPointInsideAABB(self, k: int, next_point: np.ndarray) -> bool:
+        """
+        Check is the position inside AABB in continuous state space and assume agent is a point
+        """
         next_point = next_point.reshape(-1)
         return all([
             self.blocks[k, 0] <= next_point[0] <= self.blocks[k, 3],  # [x_min, x_max]
@@ -279,12 +324,12 @@ class MyPlanner(object):
             self.blocks[k, 2] <= next_point[2] <= self.blocks[k, 5],  # [z_min, z_max]
         ])
 
-    def is_static_collide(self, node: np.ndarray, verbose=False) -> bool:
-        """ Managed one to many collision checking """
+    def is_static_collide(self, node: np.ndarray, rad, verbose=False) -> bool:
+        """ Managed one to many discrete collision checking """
 
-        current_obj = fcl.CollisionObject(fcl.Sphere(self.rad), fcl.Transform(node))
+        current_obj = fcl.CollisionObject(fcl.Sphere(rad), fcl.Transform(node))
 
-        req = fcl.CollisionRequest(num_max_contacts=100, enable_contact=True)
+        req = fcl.CollisionRequest(num_max_contacts=1000, enable_contact=True)
         cdata = fcl.CollisionData(request=req, result=fcl.CollisionResult())
         self.manager.collide(current_obj, cdata, fcl.defaultCollisionCallback)
         objs_in_collision = set()
@@ -310,7 +355,7 @@ class MyPlanner(object):
 
     def is_motion_collide(self, node: np.ndarray, T: np.ndarray, verbose=False) -> bool:
         """
-        Perform Continuous Collision Checking
+        Perform one-to-one Continuous Collision Checking
         :param node: current position
         :param T: translation
         :param verbose:
@@ -355,9 +400,9 @@ class MyPlanner(object):
         if node.ndim > 1:
             node.reshape(-1)
         cond = (
-            0 <= node[0] < self.world.shape[0],
-            0 <= node[1] < self.world.shape[1],
-            0 <= node[2] < self.world.shape[2],
+            0 <= node[0] < self.grid_world.shape[0],
+            0 <= node[1] < self.grid_world.shape[1],
+            0 <= node[2] < self.grid_world.shape[2],
         )
         return all(cond)
 
@@ -365,7 +410,7 @@ class MyPlanner(object):
         assert isinstance(node, np.ndarray)
         if node.ndim > 1:
             node.reshape(-1)
-        return self.world[tuple(node)] == 0
+        return self.grid_world[tuple(node)] == 0
 
     @staticmethod
     @jit(nopython=True, cache=True, fastmath=True)
@@ -411,7 +456,7 @@ class MyPlanner(object):
                 dist = np.linalg.norm((node - goal), ord=np.inf)
             elif dist_type == 4 or dist_type == typeDict[4]:
                 ''' Octile Distance '''
-                dist = np.linalg.norm((node - goal), ord=np.inf) - np.linalg.norm((node - goal), ord=-np.inf)
+                dist = np.linalg.norm((node - goal), ord=np.inf) + np.linalg.norm((node - goal), ord=-np.inf)
             else:
                 raise ValueError("Please provide valid dist_type or custom heuristic function")
         return dist
@@ -419,12 +464,14 @@ class MyPlanner(object):
     @staticmethod
     @jit(nopython=True, cache=True, fastmath=True)
     def euclidean_distance(node, goal) -> np.ndarray:
+        """ Use as a heuristic function in heuristic_fn"""
         dist = np.sqrt(np.sum((node - goal) ** 2))
         return dist
 
     @staticmethod
     def custom_h_fn(node, goal) -> np.ndarray:
-        dist = np.linalg.norm((node - goal), ord=np.inf) - 0.7 * np.linalg.norm((node - goal), ord=-np.inf)
+        """ User Defined heuristic function """
+        dist = np.linalg.norm((node - goal), ord=np.inf) + 0.7 * np.linalg.norm((node - goal), ord=-np.inf)
         return dist
 
     def path_recon(self, grid_start: np.ndarray, grid_goal: np.ndarray, res: float) -> Tuple[np.ndarray, np.ndarray]:
@@ -435,7 +482,6 @@ class MyPlanner(object):
         :param res: resolution
         """
         e = grid_goal.astype(np.int32)
-        path = grid_goal.astype(np.int32)
         path = grid_goal.astype(np.int32)
         while not np.array_equal(e, grid_start):
             prev = np.array(self.PARENT[tuple(e)], dtype=np.int32)

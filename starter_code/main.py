@@ -103,7 +103,7 @@ def run_test(map_file, start, goal, render=True):
 
     # Call the motion planner
     t0 = utils.tic()
-    path = MP.plan(start, goal)
+    path = MP.greedy_plan(start, goal)
     test_name = re.split('[/.]', map_file)[3]
     utils.toc(t0, f"Planning {test_name}")
 

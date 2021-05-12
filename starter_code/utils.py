@@ -172,29 +172,36 @@ def make_grid_env(boundary, blocks, start, goal, res=0.1):
     :return: 3D Grid map, discrete start pos, discrete goal pos
     """
     # Discretize start and goal
-    grid_start = np.ceil(((start - boundary[0, 0:3]) / res) + 1).astype('int')
-    grid_goal = np.ceil(((goal - boundary[0, 0:3]) / res) + 1).astype('int')
+    grid_start = np.ceil(((start - boundary[0, :3]) / res) + 1).astype('int')
+    grid_goal = np.ceil(((goal - boundary[0, :3]) / res) + 1).astype('int')
+    # ic(grid_start)
+    # ic(grid_goal)
 
-    # Discrete grid dimensions.
-    num_x = np.ceil(int(((boundary[0, 3] - boundary[0, 0]) / res) + 1)).astype('int')
-    num_y = np.ceil(int(((boundary[0, 4] - boundary[0, 1]) / res) + 1)).astype('int')
-    num_z = np.ceil(int(((boundary[0, 5] - boundary[0, 2]) / res) + 1)).astype('int')
 
+    # Discrete 3D grid dimensions.
+    dim = np.ceil(((boundary[0, 3:6] - boundary[0, 0:3]) / res) + 1).astype('int')
     # Initialize the grid world
-    grid_world = np.zeros((num_x, num_y, num_z))
-
+    grid_world = np.zeros(tuple(dim))
     # Initialize the boundary walls
     grid_world[0, :, :] = 1
     grid_world[:, 0, :] = 1
     grid_world[:, :, 0] = 1
-    # grid_boundary = np.vstack([grid_world[0, :, :], grid_world[:, 0, :], grid_world[:, :, 0]])
+
+    grid_boundary = boundary.copy()
+    grid_boundary[0, 3] = (grid_boundary[0, 3] + abs(grid_boundary[0, 0])) / res + 1
+    grid_boundary[0, 4] = (grid_boundary[0, 4] + abs(grid_boundary[0, 1])) / res + 1
+    grid_boundary[0, 5] = (grid_boundary[0, 5] + abs(grid_boundary[0, 2])) / res + 1
+    grid_boundary[0, 0:3] = 0
+    grid_boundary = grid_boundary.astype('int')
+    # ic(grid_boundary)
 
     # Convert blocks to grid coordinates
-    blocks[:, 0:3] -= boundary[0, 0:3]
-    blocks[:, 3:6] -= boundary[0, 0:3]
-    grid_block = np.ceil((blocks / res) + 1).astype('int')
-
-    # grid_world = np.zeros((6,6,6))
+    grid_block = blocks.copy()
+    grid_block[:, 0:3] -= boundary[0, :3]
+    grid_block[:, 3:6] -= boundary[0, :3]
+    grid_block[:, :6] = np.ceil((grid_block[:, :6] / res) + 1)
+    grid_block = grid_block.astype('int')
+    # ic(grid_block)
 
     # Initialize blocks in grid world
     for i in range(blocks.shape[0]):
@@ -203,7 +210,8 @@ def make_grid_env(boundary, blocks, start, goal, res=0.1):
             grid_block[i, 1] - 1: grid_block[i, 4] + 1,  # [y_min y_max]
             grid_block[i, 2] - 1: grid_block[i, 5] + 1,  # [z_min z_max]
         ] = 1
-    return grid_world, grid_block, grid_start, grid_goal
+
+    return grid_world, grid_boundary, grid_block, grid_start, grid_goal
 
 
 
@@ -249,70 +257,3 @@ def make_grid_env(boundary, blocks, start, goal, res=0.1):
 #     # distance = np.sqrt((x - sphere_node[0]) ** 2 + (y - sphere_node[1]) ** 2 + (z - sphere_node[2]) ** 2)
 #     return distance < sphere_node[4]
 
-# def main():
-#     params = OrderedDict()
-#     print('Running single cube test...\n')
-#     start = np.array([0.5, 1.0, 4.9])
-#     goal = np.array([3.8, 1.0, 0.1])
-#
-#     map_file = './maps/monza.txt'
-#
-#     # success, pathlength = run_test(map_file, start, goal, verbose=True)
-#     # print('Success: %r' % success)
-#     # print('Path length: %d' % pathlength)
-#     # print('\n')
-#     boundary, blocks = load_map(map_file)
-#
-#     fig, ax, hb, hs, hg, = draw_map(boundary, blocks, start, goal)
-#     plt.show(block=True)
-#
-#     # Create object
-#     # assume start and goal are sphere, blocks are box
-#     # all objects initially at origin and translate to pos
-#     geom_start = fcl.Sphere(0.01)
-#     geom_goal = fcl.Sphere(0.01)
-#     params['start_obj'] = fcl.CollisionObject(geom_start, fcl.Transform(start))
-#     params['goal_obj'] = fcl.CollisionObject(geom_goal, fcl.Transform(goal))
-#
-#     geoms = []
-#     for i, blk in enumerate(blocks):
-#         geom_box = fcl.Box(*utils.get_XYZ_length(blk))
-#         tf_box = fcl.Transform(np.array(utils.get_centroid(block=blk)))
-#         params[f'box_obj_{i}'] = fcl.CollisionObject(geom_box, tf_box)
-#         geoms.append(geom_box)
-#     names = list(params.keys())
-#     objs = list(params.values())
-#
-#     # Create map from geometry IDs to objects
-#     geom_id_to_obj = {id(geom): obj for geom, obj in zip(geoms, objs)}
-#
-#     # Create map from geometry IDs to string names
-#     geom_id_to_name = {id(geom): name for geom, name in zip(geoms, names)}
-#
-#     # Managed one to many collision checking
-#     manager = fcl.DynamicAABBTreeCollisionManager()
-#     manager.registerObjects(objs)
-#     manager.setup()
-#
-#     req = fcl.CollisionRequest(num_max_contacts=100, enable_contact=True)
-#     cdata = fcl.CollisionData(request=req)
-#
-#     manager.collide(params['start_obj'], cdata, fcl.defaultCollisionCallback)
-#     print(f'Collision between manager 1 and agent: {cdata.result.is_collision}')
-#
-#     # Extract collision data from contacts and use that to infer set of
-#     # objects that are in collision
-#     objs_in_collision = set()
-#     for contact in cdata.result.contacts:
-#         # Extract collision geometries that are in contact
-#         coll_geom_0 = contact.o1
-#         coll_geom_1 = contact.o2
-#         print(f'\tO1: {contact.o1}, O2: {contact.o2}')
-#
-#         # Get their names
-#         coll_names = [geom_id_to_name[id(coll_geom_0)], geom_id_to_name[id(coll_geom_1)]]
-#         coll_names = tuple(sorted(coll_names))
-#         objs_in_collision.add(coll_names)
-#
-#     for coll_pair in objs_in_collision:
-#         print(f'Object {coll_pair[0]} in collision with object {coll_pair[1]}!')
