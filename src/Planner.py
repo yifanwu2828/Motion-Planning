@@ -7,7 +7,7 @@ import fcl
 from tqdm import tqdm
 from icecream import ic
 
-import utils
+from src import utils
 
 
 class MyPlanner(object):
@@ -353,22 +353,25 @@ class MyPlanner(object):
                 print(f"Object '{coll_pair[0]}' in collision with object '{coll_pair[1]}'!")
         return collide
 
-    def is_motion_collide(self, node: np.ndarray, T: np.ndarray, verbose=False) -> bool:
+    @staticmethod
+    def is_motion_collide(node: np.ndarray, T: np.ndarray, rad, blocks, verbose=False) -> bool:
         """
         Perform one-to-one Continuous Collision Checking
         :param node: current position
         :param T: translation
+        :param rad: radius of node
+        :param blocks: Obstacles as Box
         :param verbose:
         """
         # Agent
-        g1 = fcl.Sphere(self.rad)
+        g1 = fcl.Sphere(rad)
         t1 = fcl.Transform(node)
         o1 = fcl.CollisionObject(g1, t1)
         t1_final = fcl.Transform(T)
 
         motion_collide = False
-        for k in range(self.blocks.shape[0]):
-            blk = self.blocks[k, :]
+        for k in range(blocks.shape[0]):
+            blk = blocks[k, :]
             g2 = fcl.Box(*utils.get_XYZ_length(blk))
             t2 = fcl.Transform(np.array(utils.get_centroid(blk)))
             o2 = fcl.CollisionObject(g2, t2)

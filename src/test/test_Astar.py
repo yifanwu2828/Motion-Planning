@@ -11,10 +11,10 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt; plt.ion()
 from icecream import ic
 
-from Planner import MyPlanner
-import utils
+from src.Planner import MyPlanner
+import src.utils as utils
 
-MAPDICT = {file.split('.')[0]: os.path.join('./maps/', file) for file in os.listdir('./maps/')}
+MAPDICT = {file.split('.')[0]: os.path.join('../maps/', file) for file in os.listdir('../maps/')}
 MAP_SE = OrderedDict(
     {
         'single_cube': (np.array([2.3, 2.3, 1.3]), np.array([7.0, 7.0, 5.5])),
@@ -59,19 +59,28 @@ def single_test(env_id: str, rad, eps=2, res=0.1, distType: int = 2, verbose=Tru
     utils.toc(t_start=t1, name=env_id)
 
     # Evaluation
-    total_cost = calc_cost(grid_path, cost_grid, res)
-    # TODO: modify collision
+    # total_cost = calc_cost(grid_path, cost_grid, res)
+    # one-to-one Continuous Collision Checking
     collision = False
+    for i in range(0, len(path)):
+        if i == 0:
+            prev_node = start
+        else:
+            prev_node = path[i-1]
+        node = path[i]
+        cnt_collide = MP.is_motion_collide(node=prev_node, T=node-prev_node, rad=rad, blocks=blocks)
+        if cnt_collide:
+            collision = True
+            break
+
     goal_reached = sum((path[-1] - goal) ** 2) <= 0.1
     success = (not collision) and goal_reached
     pathlength = np.sum(np.sqrt(np.sum(np.diff(path, axis=0) ** 2, axis=1)))
-    single_test_result['total_cost'] = total_cost
     single_test_result['max_node'] = max_node
     single_test_result['success'] = success
     single_test_result['pathlength'] = pathlength
     single_test_result['path'] = path
     if verbose:
-        ic(total_cost)
         ic(max_node)
         ic(success)
         ic(pathlength)
@@ -224,3 +233,4 @@ if __name__ == '__main__':
         distType=2,
         verbose=True, render=True)
     path = single_result['path']
+    ic(single_result)

@@ -1,5 +1,6 @@
 import os
 import time
+import random
 from typing import Optional, Tuple, Any
 
 import numpy as np
@@ -32,6 +33,17 @@ def toc(t_start: float, name: Optional[str] = "Operation", ftime=False) -> None:
 
 
 ############################################
+############################################
+
+def set_random_seed(seed: int = 42):
+    """
+    Seed the different random generators.
+    :param seed:
+    """
+    # Seed python RNG
+    random.seed(seed)
+    # Seed numpy RNG
+    np.random.seed(seed)
 ############################################
 
 

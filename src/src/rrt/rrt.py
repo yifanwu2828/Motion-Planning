@@ -1,4 +1,4 @@
-from src.rrt.rrt_base import RRTBase
+from src.src.rrt.rrt_base import RRTBase
 
 
 class RRT(RRTBase):
