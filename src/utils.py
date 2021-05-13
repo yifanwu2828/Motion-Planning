@@ -77,7 +77,7 @@ def draw_map(
         - start and goal points
     * Add visualization for centroids of blocks
     """
-    fig = plt.figure(figsize=(40, 30))
+    fig = plt.figure(figsize=(20, 20))
     ax = fig.add_subplot(111, projection='3d')
     hb = draw_block_list(ax, blocks)
     hs = ax.plot(start[0:1], start[1:2], start[2:], 'ro', markersize=7, markeredgecolor='k')
@@ -213,47 +213,4 @@ def make_grid_env(boundary, blocks, start, goal, res=0.1):
 
     return grid_world, grid_boundary, grid_block, grid_start, grid_goal
 
-
-
-
-
-
-
-
-
-
-
-# def isBoxIntersect(self, box_node: np.ndarray, k: int):
-#     """
-#     Check if two box AABB intersect
-#     :param box_node: AABB of Node
-#     :param k: index of blocks
-#     """
-#     box_node = box_node.reshape(-1)
-#     return all([
-#         box_node[0] <= self.blocks[k, 3],  # a.minX <= b.maxX
-#         box_node[3] >= self.blocks[k, 0],  # a.maxX >= b.minX
-#         box_node[1] <= self.blocks[k, 4],  # a.minY <= b.maxY
-#         box_node[4] >= self.blocks[k, 1],  # a.maxY >= b.minY
-#         box_node[2] <= self.blocks[k, 5],  # a.minZ <= b.maxZ
-#         box_node[5] >= self.blocks[k, 2],  # a.maxZ >= b.minZ
-#     ])
-#
-# def isSphereIntersect(self, sphere_node: np.ndarray, k: int):
-#     """
-#     Sphere vs. AABB intersect
-#     :param sphere_node: Sphere of Node
-#         [x, y, z, rad]
-#     :param k: index of blocks
-#     """
-#     sphere_node = sphere_node.reshape(-1)
-#
-#     x = np.max([self.blocks[k, 0], np.min([sphere_node[0], self.blocks[k, 3]])])
-#     y = np.max([self.blocks[k, 1], np.min([sphere_node[1], self.blocks[k, 4]])])
-#     z = np.max([self.blocks[k, 2], np.min([sphere_node[2], self.blocks[k, 5]])])
-#
-#     distance = np.sqrt(np.sum((np.hstack([x, y, z]) - sphere_node[0:3])**2))
-#
-#     # distance = np.sqrt((x - sphere_node[0]) ** 2 + (y - sphere_node[1]) ** 2 + (z - sphere_node[2]) ** 2)
-#     return distance < sphere_node[4]
 

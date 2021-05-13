@@ -69,6 +69,7 @@ def single_test(env_id: str, rad, eps=2, res=0.1, distType: int = 2, verbose=Tru
     single_test_result['max_node'] = max_node
     single_test_result['success'] = success
     single_test_result['pathlength'] = pathlength
+    single_test_result['path'] = path
     if verbose:
         ic(total_cost)
         ic(max_node)
@@ -211,5 +212,15 @@ if __name__ == '__main__':
     #     # del info
     #     with open("A_star_res.pkl", 'rb') as f:
     #         info_lst = pickle.load(f)
-    info = test_all_show_last()
+    # all test
+    # info = test_all_show_last()
 
+    # single test
+    single_result = single_test(
+        'single_cube',
+        rad=param['rad'],
+        eps=param['eps'],
+        res=param['res'],
+        distType=2,
+        verbose=True, render=True)
+    path = single_result['path']
