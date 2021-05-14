@@ -5,10 +5,13 @@ import pickle
 from collections import OrderedDict
 
 import numpy as np
-import matplotlib.pyplot as plt;plt.ion()
+import matplotlib.pyplot as plt;
+
+plt.ion()
 from tqdm import tqdm
 from icecream import ic
 import fcl
+import pyrr
 
 from Planner import MyPlanner
 from ompl_utils import *
@@ -38,10 +41,10 @@ MAPDICT = {file.split('.')[0]: os.path.join('./maps/', file) for file in os.list
 MAP_SE = OrderedDict(
     {
         'single_cube': (np.array([2.3, 2.3, 1.3]), np.array([7.0, 7.0, 5.5])),
-        'monza': (np.array([0.5, 1.0, 4.9]), np.array([3.8, 1.0, 0.1])),
         'flappy_bird': (np.array([0.5, 2.5, 5.5]), np.array([19.0, 2.5, 5.5])),
         'window': (np.array([0.2, -4.9, 0.2]), np.array([6.0, 18.0, 3.0])),
         'room': (np.array([1.0, 5.0, 1.5]), np.array([9.0, 7.0, 1.5])),
+        'monza': (np.array([0.5, 1.0, 4.9]), np.array([3.8, 1.0, 0.1])),
         'maze': (np.array([0.0, 0.0, 1.0]), np.array([12.0, 12.0, 5.0])),
         'tower': (np.array([2.5, 4.0, 0.5]), np.array([4.0, 2.5, 19.5])),
     }
@@ -133,57 +136,87 @@ class StateValidityChecker(ob.StateValidityChecker):
 
 
 class MotionValidator(ob.MotionValidator):
-    def __init__(self, si, boundary, blocks, rad):
+    def __init__(self, si, boundary, blocks):
         super().__init__(si)
         self.si = si
         self.boundary = boundary
         self.blocks = blocks
-        self.rad = rad
-        self.params = {}
-        self.geoms = []
 
-    def checkMotion(self, s1, s2, check_all=True, verbose=False):
-        state = np.array([s1[0], s1[1], s1[2]])
-        next_state = np.array([s2[0], s2[1], s2[2]])
+    def checkMotion(self, p1, p2, rad=0.01, aggressive=False, checkall=False, verbose=False):
+        """
+        Motion Collision checking utilize both Ray and Continuous Collision Detection
+            Define robot trajectory as a line or piecewise-linear object
+            Define agent as a sphere with small radius
+        :param p1: current state
+        :param p2: next state
+        :param rad: radius of agent only use when aggressive is false
+        :param aggressive: check and plan aggressively without consider agent as a small sphere
+        :param checkall: whether to check rest of block after found one collision
+        :param verbose
+        """
+        point1 = np.array([p1[0], p1[1], p1[2]])
+        point2 = np.array([p2[0], p2[1], p2[2]])
 
-        # g1 = fcl.Sphere(self.rad)
-        g1 = fcl.Box(self.rad, self.rad, self.rad)
-        t1 = fcl.Transform(state)
+        # Define a line segment between p1 and p2
+        line_seg = np.array([point1, point2])
+        ray = pyrr.ray.create_from_line(line_seg)
+
+        # Define FCL Sphere
+        g1 = fcl.Sphere(rad)
+        t1 = fcl.Transform(point1)
         o1 = fcl.CollisionObject(g1, t1)
 
-        T = next_state - state
+        T = point2 - point1
         t1_final = fcl.Transform(T)
 
-        valid = True
-        for k in range(blocks.shape[0]):
-            blk = blocks[k, :]
-            x, y, z = utils.get_XYZ_length(blk)
-            g2 = fcl.Box(x, y, z)
-            centroid = utils.get_centroid(blk)
-            t2 = fcl.Transform(np.array(centroid))
-            o2 = fcl.CollisionObject(g2, t2)
 
-            # IMPORTANT solver type
-            request = fcl.ContinuousCollisionRequest(
-                num_max_iterations=10,
-                ccd_motion_type=CCDMotionType.CCDM_LINEAR,#CCDM_TRANS,
-                gjk_solver_type=1,
-                ccd_solver_type=CCDSolverType.CCDC_CONSERVATIVE_ADVANCEMENT, #CCDC_NAIVE, #CCDC_RAY_SHOOTING,
-            )
-            result = fcl.ContinuousCollisionResult()
-            request.gjk_solver_type = 1
-            ret = fcl.continuousCollide(o1, t1_final, o2, fcl.Transform(), request, result)
-            motion_collide = result.is_collide
-            if motion_collide:
-                valid = False
-                if verbose:
-                    ic(motion_collide)
-                    print(f"Agent collide with block: {k}")
-                    print(f"Total blocks: {blocks.shape[0] - 1}")
-                    ic(blocks[k, :])
-                if not check_all:
+        is_valid = True
+        for k in range(self.blocks.shape[0]):
+            # Create AABB from blocks
+            aabb = pyrr.aabb.create_from_bounds(self.blocks[k, 0:3], self.blocks[k, 3:6])
+            intersection = utils.ray_intersect_aabb(ray, aabb)
+
+            # check line segment intersect first
+            if intersection is not None:
+                cond = (
+                    min(point1[0], point2[0]) <= intersection[0] <= max(point1[0], point2[0]),
+                    min(point1[1], point2[1]) <= intersection[1] <= max(point1[1], point2[1]),
+                    min(point1[2], point2[2]) <= intersection[2] <= max(point1[2], point2[2]),
+                )
+                if all(cond):
+                    is_valid = False
                     break
-        return valid
+                # since we initially consider agent as point
+                # now we consider it as a small sphere to ensure a safe path
+                else:
+                    if aggressive:
+                        continue
+                    # create blocks as Box in FCL
+                    x, y, z = self.get_XYZ_length(self.blocks[k, :])
+                    g2 = fcl.Box(x, y, z)
+                    centroid = self.get_centroid(self.blocks[k, :])
+                    t2 = fcl.Transform(np.array(centroid))
+                    o2 = fcl.CollisionObject(g2, t2)
+                    # IMPORTANT solver type
+                    request = fcl.ContinuousCollisionRequest(
+                        num_max_iterations=10,
+                        ccd_motion_type=CCDMotionType.CCDM_TRANS,
+                        gjk_solver_type=GJKSolverType.GST_INDEP,
+                        ccd_solver_type=CCDSolverType.CCDC_CONSERVATIVE_ADVANCEMENT,
+                    )
+                    result = fcl.ContinuousCollisionResult()
+                    ret = fcl.continuousCollide(o1, t1_final, o2, fcl.Transform(), request, result)
+                    cnt_collide = result.is_collide
+                    if cnt_collide:
+                        is_valid = False
+                        if verbose:
+                            ic(cnt_collide)
+                            print(f"Agent collide with block: {k}")
+                            print(f"Total blocks: {blocks.shape[0] - 1}")
+                            ic(blocks[k, :])
+                        if not checkall:
+                            break
+        return is_valid
 
     @staticmethod
     def get_XYZ_length(block: np.ndarray):
@@ -234,7 +267,7 @@ def plan(runTime: float, plannerType, objectiveType, fname: str, param: dict):
     si.setStateValidityChecker(state_valid_checker)
 
     # continuous motion validation
-    motion_valid_checker = MotionValidator(si, boundary, blocks, param['rad'])
+    motion_valid_checker = MotionValidator(si, boundary, blocks)
     si.setMotionValidator(motion_valid_checker)
 
     si.setup()
@@ -278,18 +311,13 @@ def plan(runTime: float, plannerType, objectiveType, fname: str, param: dict):
             pdef.getOptimizationObjective()
         ).value()
 
-        # ic(algo_name)
-        # ic(path_length)
-        # ic(cost)
-
         # Output the length of the path found
         print(
             f'\n{algo_name} found solution of path length {path_length:.4f}'
-            # f'with an optimization objective value of {cost:.4f}'
+            f'with an optimization objective value of {cost:.4f}'
         )
 
-        # If a filename was specified, output the path as a matrix to
-        # that file for visualization
+        # If a filename was specified, output the path as a matrix to that file for visualization
         if fname:
             with open(fname, 'w') as outFile:
                 outFile.write(pdef.getSolutionPath().printAsMatrix())
@@ -326,6 +354,9 @@ if __name__ == "__main__":
             '-i', '--info', type=int, default=0, choices=[0, 1, 2],
             help='(Optional) Set the OMPL log level. 0 for WARN, 1 for INFO, 2 for DEBUG. Defaults to WARN.')
 
+        parser.add_argument("--seed", help="Random generator seed", type=int, default=42)
+        parser.add_argument("--save", action="store_true", default=True)
+
         # Parse the arguments
         args = parser.parse_args()
 
@@ -345,72 +376,82 @@ if __name__ == "__main__":
         else:
             ou.OMPL_ERROR("Invalid log-level integer.")
     ###################################################################################################
-
-    args.runtime = 30
+    # utils.set_random_seed(seed=42)
     runtime_env = {
         'single_cube': 5,
-        'monza': 10,  # Fail go through
-        'flappy_bird': 10,
-        'window': 10,
-        'room': 10,  # Fail go through
-        'maze': 240,  # Fail need more time 300
-        'tower': 60  # Fail go through,
+        'flappy_bird': 30,
+        'window': 30,
+        'room': 30,
+        'monza': 500,  # 1800 works
+        'maze': 1000,  # best 1305
+        'tower': 60  #
     }
 
     lst = []
-    env_id = "monza"
-    print(f"\n############ {env_id} ############ ")
-    map_file = MAPDICT[env_id]
-    start, goal = MAP_SE[env_id]
-    boundary, blocks = utils.load_map(map_file)
+    info = {}
+    for i, env_id in tqdm(enumerate(MAP_SE)):
+        print(f"\n############ {env_id} ############ ")
+        map_file = MAPDICT[env_id]
+        start, goal = MAP_SE[env_id]
+        boundary, blocks = utils.load_map(map_file)
+        mv = MotionValidator(None, boundary, blocks)
+        param = {
+            "start": start,
+            "goal": goal,
+            "boundary": boundary,
+            "blocks": blocks,
+            "rad": 0.001
+        }
 
-    MV = MotionValidator(None, boundary, blocks, rad=0.1)
-    MV.checkMotion(start, goal, check_all=True, verbose=True)
+        # Solve the planning problem
+        t = runtime_env[env_id]
+        path_obj = plan(t, args.planner, args.objective, args.file, param)
+        print_path = path_obj.printAsMatrix()
 
-    param = {
-        "start": start,
-        "goal": goal,
-        "boundary": boundary,
-        "blocks": blocks,
-        "rad": 0.1
-    }
+        path_dict = {}
 
-    # # Solve the planning problem
-    # # t = runtime_env[env_id]
-    t = 10
-    path_obj = plan(t, args.planner, args.objective, args.file, param)
-    #
-    print_path = path_obj.printAsMatrix()
-    path = None
-    if print_path is not None:
-        path = utils.extract_print_path(print_path=path_obj.printAsMatrix())
-        # Evaluation: one-to-one Continuous Collision Checking
+        path = None
+        if print_path is not None:
+            path = utils.extract_print_path(print_path)
+            path_dict[env_id] = path
+            collision = False
+            for j in range(1, path.shape[0]):
+                s1 = path[j - 1, :]
+                s2 = path[j, :]
+                valid = mv.checkMotion(s1, s2, rad=0.0001, aggressive=False, verbose=True)
+                if not valid:
+                    collision = True
 
-        collide_lst = []
-        for i in range(1, len(path)):
-            prev_node = path[i - 1]
-            node = path[i]
-            cnt_collide = not MV.checkMotion(prev_node, node, check_all=True, verbose=True)
-            collide_lst.append(cnt_collide)
+            goal_reached = sum((path[-1] - goal) ** 2) <= 0.1
+            success = (not collision) and goal_reached
+            pathlength = utils.get_path_length(path)
 
-        collision = True if True in collide_lst else False
-        goal_reached = sum((path[-1] - goal) ** 2) <= 0.1
-        success = (not collision) and goal_reached
-        pathlength = utils.get_path_length(path)
+            path_dict['collision'] = collision
+            path_dict['goal_reached'] =goal_reached
+            path_dict['success'] = success
+            path_dict['pathlength'] = pathlength
+            ic(collision)
+            ic(goal_reached)
+            ic(success)
+            ic(pathlength)
+        print("###################################\n")
+        info[env_id] = path_dict
+        path_dict.clear()
 
-    #     ic(path)
-        ic(collision)
-        ic(collide_lst)
-        ic(success)
-        ic(pathlength)
-    print("###################################\n")
-    # # Original Plot
-    fig, ax, hb, hs, hg = utils.draw_map(boundary, blocks, start, goal)
-    if path is not None:
-        ax.plot(path[:, 0], path[:, 1], path[:, 2], 'r-')
-    plt.title(f"Original {env_id} Env")
-    plt.show(block=True)
-    # # lst.append((fig, ax, hb, hs, hg))
-    # # for p in lst:
-    # #     f, a, b, s, g = p
-    # #     plt.show(block=True)
+        # Original Plot
+        fig, ax, hb, hs, hg = utils.draw_map(boundary, blocks, start, goal)
+        if path is not None:
+            ax.plot(path[:, 0], path[:, 1], path[:, 2], 'r-')
+        plt.title(f"Original {env_id} Env")
+        lst.append((fig, ax, hb, hs, hg))
+
+    for p in lst:
+        f, a, b, s, g = p
+        plt.show(block=True)
+
+    if args.save:
+        with open("RRT_star_res.pkl", 'wb') as f:
+            pickle.dump(info, f)
+        # del info
+        with open("RRT_star_res.pkl", 'rb') as f:
+            info = pickle.load(f)

@@ -264,3 +264,50 @@ def extract_print_path(print_path) -> np.ndarray:
 def get_path_length(path, decimals=4):
     path_len = np.sum(np.sqrt(np.sum(np.diff(path, axis=0) ** 2, axis=1)))
     return np.around(path_len, decimals=decimals)
+
+
+def ray_intersect_aabb(ray, AABB):
+    """
+    Calculates the intersection point of a ray and an AABB
+    :param ray:
+    :param AABB:
+    :return: vector if an intersection occurs else None
+    """
+
+    direction = ray[1]
+    dir_fraction = np.empty(3, dtype=ray.dtype)
+    dir_fraction[direction == 0.0] = 1e16
+    dir_fraction[direction != 0.0] = np.divide(1.0, direction[direction != 0.0])
+
+    '''
+    float t1 = (lb.x - r.org.x) * dirfrac.x;
+    float t2 = (rt.x - r.org.x) * dirfrac.x;
+    float t3 = (lb.y - r.org.y) * dirfrac.y;
+    float t4 = (rt.y - r.org.y) * dirfrac.y;
+    float t5 = (lb.z - r.org.z) * dirfrac.z;
+    float t6 = (rt.z - r.org.z) * dirfrac.z;
+    '''
+
+    t1 = (AABB[0, 0] - ray[0, 0]) * dir_fraction[0]
+    t2 = (AABB[1, 0] - ray[0, 0]) * dir_fraction[0]
+    t3 = (AABB[0, 1] - ray[0, 1]) * dir_fraction[1]
+    t4 = (AABB[1, 1] - ray[0, 1]) * dir_fraction[1]
+    t5 = (AABB[0, 2] - ray[0, 2]) * dir_fraction[2]
+    t6 = (AABB[1, 2] - ray[0, 2]) * dir_fraction[2]
+
+
+    tmin = max(min(t1, t2), min(t3, t4), min(t5, t6))
+    tmax = min(max(t1, t2), max(t3, t4), max(t5, t6))
+
+    # if tmax < 0, ray (line) is intersecting AABB but the whole AABB is behind the ray start
+    if tmax < 0:
+        return None
+
+    # if tmin > tmax, ray doesn't intersect AABB
+    if tmin > tmax:
+        return None
+
+    # t is the distance from the ray point to intersection
+    t = min(x for x in (tmin, tmax) if x >= 0)
+    point = ray[0] + (ray[1] * t)
+    return point
