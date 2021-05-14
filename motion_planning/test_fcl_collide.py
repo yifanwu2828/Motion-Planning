@@ -4,10 +4,10 @@ import fcl
 import matplotlib.pyplot as plt; plt.ion()
 from icecream import ic
 
-from src import utils
+import utils
 
 if __name__ == '__main__':
-    map_path = '../maps/'
+    map_path = 'maps/'
     mapDict = {file.split('.')[0]: os.path.join(map_path, file) for file in os.listdir(map_path)}
     ic(mapDict)
     map_file = mapDict['monza']

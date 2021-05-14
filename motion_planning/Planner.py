@@ -7,7 +7,7 @@ import fcl
 from tqdm import tqdm
 from icecream import ic
 
-from src import utils
+import utils
 
 
 class MyPlanner(object):
@@ -137,13 +137,13 @@ class MyPlanner(object):
                 if self.isPointOutBound(next_node):
                     continue
 
-                static_collide = self.is_static_collide(next_node, verbose=False)
-                motion_collide = False
-                if not static_collide:
-                    # Perform Continuous Collision Checking
-                    motion_collide = self.is_motion_collide(current_node, T=action)
+                static_collide = self.is_static_collide(next_node, rad=0.05, verbose=False)
+                # motion_collide = False
+                # if not static_collide:
+                #     # Perform Continuous Collision Checking
+                #     motion_collide = self.is_motion_collide(current_node, T=action, rad=0.05, blocks=self.blocks)
 
-                if static_collide or motion_collide:
+                if static_collide: # or motion_collide:
                     continue
                 else:
                     # Update next_node
@@ -178,7 +178,7 @@ class MyPlanner(object):
         Epsilon-Consistent A* Algorithm in 3-D Euclidean space
         :param start: start position
         :param goal:  goal position
-        :param rad: radius of angent
+        :param rad: radius of agent
         :param eps: epsilon
         :param res: resolution
         :param distType: type of distance as heuristic
@@ -264,6 +264,8 @@ class MyPlanner(object):
                         # Discrete collision checking
                         if self.is_static_collide(j, rad=self.rad):
                             continue
+                        # if self.line_segment_collide(node=j, prev_node=i):
+                        #     continue
                         g_j = cost_grid[state_j]
                         g_i = cost_grid[state_i]
                         c_ij = self.cost(i, j)
@@ -354,14 +356,15 @@ class MyPlanner(object):
         return collide
 
     @staticmethod
-    def is_motion_collide(node: np.ndarray, T: np.ndarray, rad, blocks, verbose=False) -> bool:
+    def is_motion_collide(node: np.ndarray, T: np.ndarray, rad, blocks, verbose=False, verbose_contact=False) -> bool:
         """
         Perform one-to-one Continuous Collision Checking
         :param node: current position
         :param T: translation
         :param rad: radius of node
         :param blocks: Obstacles as Box
-        :param verbose:
+        :param verbose:  show massage when agent "collide" with obstacles
+        :param verbose_contact: show massage when agent "contact" with obstacles
         """
         # Agent
         g1 = fcl.Sphere(rad)
@@ -369,23 +372,68 @@ class MyPlanner(object):
         o1 = fcl.CollisionObject(g1, t1)
         t1_final = fcl.Transform(T)
 
-        motion_collide = False
+        valid = True
         for k in range(blocks.shape[0]):
             blk = blocks[k, :]
             g2 = fcl.Box(*utils.get_XYZ_length(blk))
             t2 = fcl.Transform(np.array(utils.get_centroid(blk)))
             o2 = fcl.CollisionObject(g2, t2)
 
+            # Default gives identity transform
+            identity_tf = fcl.Transform()
+
             request = fcl.ContinuousCollisionRequest()
             result = fcl.ContinuousCollisionResult()
-            ret = fcl.continuousCollide(o1, t1_final, o2, t2, request, result)
-            if verbose:
+            ret = fcl.continuousCollide(o1, t1_final, o2, identity_tf, request, result)
+            if verbose_contact:
+                print(f"Agent contact with block_{k}")
                 print(f"time_of_contact: {result.time_of_contact}")
 
             motion_collide = result.is_collide
             if motion_collide:
-                break
-        return motion_collide
+                valid=False
+                if verbose:
+                    ic(motion_collide)
+                    print(f"Agent collide with block: {k}")
+                    print(f"Total blocks: {blocks.shape[0]}")
+                    ic(blocks[k, :])
+                # TODO: disable when debug
+                # break
+        return not valid
+
+    def line_segment_collide(self, node: np.ndarray, prev_node: np.ndarray, verbose=False) -> bool:
+        """
+        Managed one to many discrete line segment collision checking
+        Instead of consider agent as a small sphere and do continuous collision checking which takes O(n^2)
+        Consider the path of agent as line segment as perform one-to-many discrete collision checking which takes O(n)
+        """
+        # TODO: test this
+        # Represent Line Segment as a super-thin Triangle where two vertices are the same.
+        line_from_triangle = fcl.TriangleP(prev_node, prev_node, node)
+        current_line_obj = fcl.CollisionObject(line_from_triangle, fcl.Transform())
+
+        req = fcl.CollisionRequest(num_max_contacts=1000, enable_contact=True)
+        cdata = fcl.CollisionData(request=req, result=fcl.CollisionResult())
+        self.manager.collide(current_line_obj, cdata, fcl.defaultCollisionCallback)
+        objs_in_collision = set()
+
+        line_collide = cdata.result.is_collision
+        if verbose and line_collide:
+            for contact in cdata.result.contacts:
+                # Extract collision geometries that are in contact
+                coll_geom_0 = contact.o1
+                coll_geom_1 = contact.o2
+
+                # Get their names
+                coll_names = [
+                    self.geom_id_to_name.get(id(coll_geom_0), 'start'),
+                    self.geom_id_to_name.get(id(coll_geom_1), 'start')
+                ]
+                coll_names = tuple(sorted(coll_names))
+                objs_in_collision.add(coll_names)
+            for coll_pair in objs_in_collision:
+                print(f"Object '{coll_pair[0]}' in collision with object '{coll_pair[1]}'!")
+        return line_collide
 
     @staticmethod
     def child_of(node: np.ndarray) -> np.ndarray:

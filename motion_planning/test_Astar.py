@@ -1,6 +1,6 @@
 import argparse
 import os
-import sys
+
 import re
 import time
 import pickle
@@ -11,10 +11,11 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt; plt.ion()
 from icecream import ic
 
-from src.Planner import MyPlanner
-import src.utils as utils
+import sys
+from Planner import MyPlanner
+import utils
 
-MAPDICT = {file.split('.')[0]: os.path.join('../maps/', file) for file in os.listdir('../maps/')}
+MAPDICT = {file.split('.')[0]: os.path.join('./maps/', file) for file in os.listdir('./maps/')}
 MAP_SE = OrderedDict(
     {
         'single_cube': (np.array([2.3, 2.3, 1.3]), np.array([7.0, 7.0, 5.5])),
@@ -36,7 +37,7 @@ def calc_cost(grid_path, cost_grid, res):
     return cost * res
 
 
-def single_test(env_id: str, rad, eps=2, res=0.1, distType: int = 2, verbose=True, render=False):
+def single_test(env_id: str, rad, eps=2, res=0.1, distType: int = 2, verbose=True, render=False, render_grid=False):
     """Perform a single test on single Env"""
     print(f"\n###### {env_id}_{distType} ######")
     single_test_result = {}
@@ -58,30 +59,28 @@ def single_test(env_id: str, rad, eps=2, res=0.1, distType: int = 2, verbose=Tru
         distType=distType)
     utils.toc(t_start=t1, name=env_id)
 
-    # Evaluation
-    # total_cost = calc_cost(grid_path, cost_grid, res)
-    # one-to-one Continuous Collision Checking
+    # Evaluation: one-to-one Continuous Collision Checking
     collision = False
     for i in range(0, len(path)):
-        if i == 0:
-            prev_node = start
-        else:
-            prev_node = path[i-1]
+        prev_node = path[i-1]
         node = path[i]
-        cnt_collide = MP.is_motion_collide(node=prev_node, T=node-prev_node, rad=rad, blocks=blocks)
+        cnt_collide = MP.is_motion_collide(node=prev_node, T=node-prev_node, rad=rad, blocks=blocks, verbose=True)
+
         if cnt_collide:
             collision = True
             break
 
     goal_reached = sum((path[-1] - goal) ** 2) <= 0.1
     success = (not collision) and goal_reached
-    pathlength = np.sum(np.sqrt(np.sum(np.diff(path, axis=0) ** 2, axis=1)))
+    pathlength = np.around(np.sum(np.sqrt(np.sum(np.diff(path, axis=0) ** 2, axis=1))), decimals=4)
     single_test_result['max_node'] = max_node
+    single_test_result['collision'] = collision
     single_test_result['success'] = success
     single_test_result['pathlength'] = pathlength
     single_test_result['path'] = path
     if verbose:
         ic(max_node)
+        ic(collision)
         ic(success)
         ic(pathlength)
     print("###################################")
@@ -94,21 +93,22 @@ def single_test(env_id: str, rad, eps=2, res=0.1, distType: int = 2, verbose=Tru
         plt.show(block=True)
         plt.close('all')
 
-        # # Grid Plot
-        # grid_env = utils.make_grid_env(boundary, blocks, start, goal, res=res)
-        # _, grid_boundary, grid_block, grid_start, grid_goal = grid_env
-        # grid_fig, grid_ax, grid_hb, grid_hs, grid_hg = utils.draw_map(grid_boundary, grid_block, grid_start, grid_goal)
-        # grid_ax.plot(grid_path[:, 0], grid_path[:, 1], grid_path[:, 2], 'r-')
-        # plt.title(f"Grid {env_id} Env")
-        # plt.show(block=True)
+    if render_grid:
+        # Grid Plot
+        grid_env = utils.make_grid_env(boundary, blocks, start, goal, res=res)
+        _, grid_boundary, grid_block, grid_start, grid_goal = grid_env
+        grid_fig, grid_ax, grid_hb, grid_hs, grid_hg = utils.draw_map(grid_boundary, grid_block, grid_start, grid_goal)
+        grid_ax.plot(grid_path[:, 0], grid_path[:, 1], grid_path[:, 2], 'r-')
+        plt.title(f"Grid {env_id} Env")
+        plt.show(block=True)
 
     return single_test_result
 
 
-def multi_test_single_env(env_id: str, param:dict, verbose=True, render=False):
+def multi_test_single_env(env_id: str, param: dict, verbose=True, render=False):
     info = {}
     # for distType in range(1, 5):
-    for distType in range(2, 3):
+    for distType in range(1, 5):
         print(f"\n###### {distType} ######")
         single_result = single_test(
             env_id,
@@ -162,17 +162,15 @@ def test_all_show_last():
         utils.toc(t_start=t1, name=env_id)
 
         # Evaluation
-        total_cost = calc_cost(grid_path, cost_grid, param['res'])
-        # TODO: modify collision
+        # total_cost = calc_cost(grid_path, cost_grid, param['res'])
+
         collision = False
         goal_reached = sum((path[-1] - goal) ** 2) <= 0.1
         success = (not collision) and goal_reached
         pathlength = np.sum(np.sqrt(np.sum(np.diff(path, axis=0) ** 2, axis=1)))
-        single[total_cost] = total_cost
         single[max_node] = max_node
         single[success] = success
         single[pathlength] = pathlength
-        ic(total_cost)
         ic(max_node)
         ic(success)
         ic(pathlength)
@@ -222,15 +220,15 @@ if __name__ == '__main__':
     #     with open("A_star_res.pkl", 'rb') as f:
     #         info_lst = pickle.load(f)
     # all test
-    # info = test_all_show_last()
+    info = test_all_show_last()
 
-    # single test
-    single_result = single_test(
-        'single_cube',
-        rad=param['rad'],
-        eps=param['eps'],
-        res=param['res'],
-        distType=2,
-        verbose=True, render=True)
-    path = single_result['path']
-    ic(single_result)
+    # # single test
+    # single_result = single_test(
+    #     'single_cube',
+    #     rad=param['rad'],
+    #     eps=param['eps'],
+    #     res=param['res'],
+    #     distType=2,
+    #     verbose=True, render=True)
+    # path = single_result['path']
+    # ic(single_result)

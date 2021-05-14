@@ -1,4 +1,5 @@
 import os
+import re
 import time
 import random
 from typing import Optional, Tuple, Any
@@ -226,3 +227,40 @@ def make_grid_env(boundary, blocks, start, goal, res=0.1):
     return grid_world, grid_boundary, grid_block, grid_start, grid_goal
 
 
+def is_state_valid(state, boundary, blocks):
+    """State Validation Check"""
+    bound = boundary.flatten()
+    # check if state is inbound
+    cond_inbound = (
+        bound[0] <= state[0] < bound[3],
+        bound[1] <= state[1] < bound[4],
+        bound[2] <= state[2] < bound[5],
+    )
+    valid = True
+    if all(cond_inbound):
+        # if state inbound check if inside blocks
+        for k in range(blocks.shape[0]):
+            cond_inAABB = (
+                blocks[k, 0] <= state[0] <= blocks[k, 3],  # [x_min, x_max]
+                blocks[k, 1] <= state[1] <= blocks[k, 4],  # [y_min, y_max]
+                blocks[k, 2] <= state[2] <= blocks[k, 5],  # [z_min, z_max]
+            )
+            if all(cond_inAABB):
+                valid = False
+    else:
+        valid = False
+    return valid
+
+
+def extract_print_path(print_path) -> np.ndarray:
+    f = re.findall(r"[-+]?\d*\.\d+|\d+", print_path)
+    f_lst = [float(i) for i in f]
+    path = np.array(f_lst[0:3])
+    for idx in range(3, len(f_lst), 3):
+        path = np.vstack((path, f_lst[idx:idx + 3]))
+    return path
+
+
+def get_path_length(path, decimals=4):
+    path_len = np.sum(np.sqrt(np.sum(np.diff(path, axis=0) ** 2, axis=1)))
+    return np.around(path_len, decimals=decimals)
