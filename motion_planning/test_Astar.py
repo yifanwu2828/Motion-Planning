@@ -57,6 +57,7 @@ def single_test(env_id: str, rad, eps=2, res=0.1, distType: int = 2, verbose=Tru
         eps=eps,
         res=res,
         distType=distType)
+    runtime = time.time() - t1
     utils.toc(t_start=t1, name=env_id)
 
     # Evaluation: one-to-one Continuous Collision Checking
@@ -64,6 +65,7 @@ def single_test(env_id: str, rad, eps=2, res=0.1, distType: int = 2, verbose=Tru
     goal_reached = sum((path[-1] - goal) ** 2) <= 0.1
     success = (not collision) and goal_reached
     pathlength = np.around(np.sum(np.sqrt(np.sum(np.diff(path, axis=0) ** 2, axis=1))), decimals=4)
+    single_test_result['runtime'] = runtime
     single_test_result['max_node'] = max_node
     single_test_result['collision'] = collision
     single_test_result['success'] = success
@@ -196,10 +198,12 @@ if __name__ == '__main__':
     print(np.__version__)
 
     param = {
-        'eps': 2.0,
+        'eps': 1.0,
         'res': 0.1,
         'rad': 0.01,
     }
+
+    print(f"eps: {param['eps']}")
 
     info_lst = []
     for env_id in tqdm(MAP_SE.keys()):

@@ -49,7 +49,7 @@ if __name__ == '__main__':
         help="Show ALL Env with 4 heuristic plots(28 plots in total) with render = True",
     )
     parser.add_argument(
-        "--eps", help="epsilon of A*", type=float, default=2.0,
+        "--eps", help="epsilon of A*", type=float, default=1.0,
         choices=[1.0, 1.5, 2.0]
     )
     parser.add_argument(
@@ -68,13 +68,13 @@ if __name__ == '__main__':
     assert args.h in valid_h
 
     if args.eps == 1.0:
-        with open(f"./result/A_star_res_eps_1.pkl", 'rb') as f:
+        with open(f"./result/A_star_res_eps_1.0.pkl", 'rb') as f:
             A = pickle.load(f)
     elif args.eps == 1.5:
         with open(f"./result/A_star_res_eps_1.5.pkl", 'rb') as f:
             A = pickle.load(f)
     elif args.eps == 2.0:
-        with open(f"./result/A_star_res_eps_2.pkl", 'rb') as f:
+        with open(f"./result/A_star_res_eps_2.0.pkl", 'rb') as f:
             A = pickle.load(f)
     else:
         raise ValueError("Valid eps are [1.0, 1.5, 2.0]")
@@ -91,15 +91,17 @@ if __name__ == '__main__':
         pathlength_lst = []
         for h in range(1, 5):
             path = info[f'{env_id}_{h}_path']
-            runtime_lst.append(info[f'{env_id}_{h}_runtime'])
+            runtime_lst.append(round(info[f'{env_id}_{h}_runtime'], 3))
             max_node_lst.append(info[f'{env_id}_{h}_max_node'])
             pathlength_lst.append(info[f'{env_id}_{h}_pathlength'])
             if args.verbose:
+                runtime = round(info[f'{env_id}_{h}_runtime'], 3)
                 max_node = info[f'{env_id}_{h}_max_node']
                 collision = info[f'{env_id}_{h}_collision']
                 success = info[f'{env_id}_{h}_success']
                 pathlength = info[f'{env_id}_{h}_pathlength']
                 print(f"\n<--------------{env_id} Heuristic:{h} {h_dict[h]}---------------->")
+                ic(runtime)
                 ic(max_node)
                 ic(collision)
                 ic(success)

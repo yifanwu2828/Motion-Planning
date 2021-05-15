@@ -10,7 +10,7 @@
 ## Introduction
 This is a Python implementation of Motion Planing which includes two parts
 * Own implement of Search-based Motion Planning Algorithm:
-    1. weighted A* with epsilon consistence
+    1. Weighted A* with epsilon consistence
     2. One-to-many discrete collision/distance checking using 
        [python-fcl](https://github.com/BerkeleyAutomation/python-fcl)
 
@@ -34,6 +34,7 @@ Enjoy A* Algorithm by running following script:
 ```
 cd motion_planning
 python3 enjoy_A_star.py  # The deafult heuristic is 2 (euclidean distance)
+                         # with --showall plots 4 type of heuristic in each env
 ```
 
 Enjoy RRT* Algorithm by running following script:
