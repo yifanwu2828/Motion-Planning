@@ -47,9 +47,13 @@ pip install python-pcl # use for one-to-many collision checking
 Enjoy A* Algorithm by running following script:
 
 ```
-# There are four type of choice: [1,2,3,4] wrt ['manhattan', 'euclidean', 'diagonal', 'octile']
 cd motion_planning
+
+'''
+Four type of heuristic: [1,2,3,4] wrt ['manhattan', 'euclidean', 'diagonal', 'octile']
+'''
 python3 enjoy_A_star.py  # The deafult heuristic is 2 (euclidean distance)
+
 
 # with --showall plots 4 type of heuristic in each env(28 plots in total)                         
 python3 enjoy_A_star.py --showall  
