@@ -61,15 +61,6 @@ def single_test(env_id: str, rad, eps=2, res=0.1, distType: int = 2, verbose=Tru
 
     # Evaluation: one-to-one Continuous Collision Checking
     collision = False
-    for i in range(0, len(path)):
-        prev_node = path[i-1]
-        node = path[i]
-        cnt_collide = MP.is_motion_collide(node=prev_node, T=node-prev_node, rad=rad, blocks=blocks, verbose=True)
-
-        if cnt_collide:
-            collision = True
-            break
-
     goal_reached = sum((path[-1] - goal) ** 2) <= 0.1
     success = (not collision) and goal_reached
     pathlength = np.around(np.sum(np.sqrt(np.sum(np.diff(path, axis=0) ** 2, axis=1))), decimals=4)
@@ -159,6 +150,7 @@ def test_all_show_last():
             res=param['res'],
             distType=2
         )
+        runtime = time.time() - t1
         utils.toc(t_start=t1, name=env_id)
 
         # Evaluation
@@ -168,6 +160,7 @@ def test_all_show_last():
         goal_reached = sum((path[-1] - goal) ** 2) <= 0.1
         success = (not collision) and goal_reached
         pathlength = np.sum(np.sqrt(np.sum(np.diff(path, axis=0) ** 2, axis=1)))
+        single['runtime'] = runtime
         single[max_node] = max_node
         single[success] = success
         single[pathlength] = pathlength
@@ -201,34 +194,26 @@ if __name__ == '__main__':
     args = parser.parse_args()
     seed = args.seed
     print(np.__version__)
-    # np.seterr(all='raise')
+
     param = {
-        'eps': 2,
+        'eps': 2.0,
         'res': 0.1,
-        'rad': 0.1,
+        'rad': 0.01,
     }
 
-    # info_lst = []
-    # for env_id in tqdm(MAP_SE.keys()):
-    #     print(f"\n###### {env_id} ######")
-    #     info = multi_test_single_env(env_id=env_id, param=param, verbose=True, render=True)
-    #     info_lst.append(info)
-    # if args.save:
-    #     with open("A_star_res.pkl", 'wb') as f:
-    #         pickle.dump(info_lst, f)
-    #     # del info
-    #     with open("A_star_res.pkl", 'rb') as f:
-    #         info_lst = pickle.load(f)
-    # all test
-    info = test_all_show_last()
+    info_lst = []
+    for env_id in tqdm(MAP_SE.keys()):
+        print(f"\n###### {env_id} ######")
+        info = multi_test_single_env(env_id=env_id, param=param, verbose=True, render=False)
+        info_lst.append(info)
 
-    # # single test
-    # single_result = single_test(
-    #     'single_cube',
-    #     rad=param['rad'],
-    #     eps=param['eps'],
-    #     res=param['res'],
-    #     distType=2,
-    #     verbose=True, render=True)
-    # path = single_result['path']
-    # ic(single_result)
+    args.save = True
+    if args.save:
+        with open(f"./result/A_star_res_eps_{param['eps']}.pkl", 'wb') as f:
+            pickle.dump(info_lst, f)
+        # del info
+        with open(f"./result/A_star_res_eps_{param['eps']}.pkl", 'rb') as f:
+            info_lst = pickle.load(f)
+
+    # all test
+    # info = test_all_show_last()

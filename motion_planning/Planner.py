@@ -198,12 +198,12 @@ class MyPlanner(object):
         self.grid_start: np.ndarray = grid_start
         self.grid_goal: np.ndarray = grid_goal
 
-        print("---------------------------")
-        print(f"Grid_x_boundary: (0, {grid_world.shape[0]})")
-        print(f"Grid_y_boundary: (0, {grid_world.shape[1]})")
-        print(f"Grid_z_boundary: (0, {grid_world.shape[2]})")
-        print(f"Grid_start: {grid_start}")
-        print(f"Grid_goal: {grid_goal}")
+        # print("---------------------------")
+        # print(f"Grid_x_boundary: (0, {grid_world.shape[0]})")
+        # print(f"Grid_y_boundary: (0, {grid_world.shape[1]})")
+        # print(f"Grid_z_boundary: (0, {grid_world.shape[2]})")
+        # print(f"Grid_start: {grid_start}")
+        # print(f"Grid_goal: {grid_goal}")
 
         # Init collision objs for discrete collision checking
         self.init_collision_objects(
@@ -237,10 +237,12 @@ class MyPlanner(object):
         max_num_node = 0
         while e not in CLOSED.keys():
             ''' util func to know the progress'''
+            # if itr % 100_000 == 0:
+            #     print(len(CLOSED))
+
+            # Record max num of node explore
             if len(OPEN) > max_num_node:
                 max_num_node = len(OPEN)
-            if itr % 100_000 == 0:
-                print(len(CLOSED))
 
             # Remove i with the  smallest f_i := g_i + h_i from OPEN
             state_i: tuple
@@ -288,7 +290,7 @@ class MyPlanner(object):
                             else:
                                 # Add {j} to OPEN
                                 OPEN.additem(state_j, f_j)
-            itr += 1
+            # itr += 1
         print("Planning Finished. Start Reconstructing Path Now")
         path, grid_path = self.path_recon(grid_start, grid_goal, res)
         self.path = path
@@ -352,58 +354,6 @@ class MyPlanner(object):
                 objs_in_collision.add(coll_names)
             for coll_pair in objs_in_collision:
                 print(f"Object '{coll_pair[0]}' in collision with object '{coll_pair[1]}'!")
-        return collide
-
-    @staticmethod
-    def is_motion_collide(
-            node: np.ndarray,
-            T: np.ndarray,
-            rad,
-            blocks,
-            check_all=False, verbose=False, verbose_contact=False) -> bool:
-        """
-        Perform one-to-one Continuous Collision Checking
-        :param node: current position
-        :param T: translation
-        :param rad: radius of node
-        :param blocks: Obstacles as Box
-        :param check_all: check collision wit rest Obstacles even if a collision is found
-        :param verbose:  show massage when agent "collide" with obstacles
-        :param verbose_contact: show massage when agent "contact" with obstacles
-        """
-        # Agent
-        g1 = fcl.Sphere(rad)
-        t1 = fcl.Transform(node)
-        o1 = fcl.CollisionObject(g1, t1)
-        t1_final = fcl.Transform(T)
-
-        collide = False
-        for k in range(blocks.shape[0]):
-            blk = blocks[k, :]
-            g2 = fcl.Box(*utils.get_XYZ_length(blk))
-            t2 = fcl.Transform(np.array(utils.get_centroid(blk)))
-            o2 = fcl.CollisionObject(g2, t2)
-
-            # Default gives identity transform
-            identity_tf = fcl.Transform()
-
-            request = fcl.ContinuousCollisionRequest()
-            result = fcl.ContinuousCollisionResult()
-            ret = fcl.continuousCollide(o1, t1_final, o2, identity_tf, request, result)
-            if verbose_contact:
-                print(f"Agent contact with block_{k}")
-                print(f"time_of_contact: {result.time_of_contact}")
-
-            motion_collide = result.is_collide
-            if motion_collide:
-                collide = True
-                if verbose:
-                    ic(motion_collide)
-                    print(f"Agent collide with block: {k}")
-                    print(f"Total blocks: {blocks.shape[0]}")
-                    ic(blocks[k, :])
-                if not check_all:
-                    break
         return collide
 
     @staticmethod

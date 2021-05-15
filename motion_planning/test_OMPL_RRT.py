@@ -1,24 +1,19 @@
 import argparse
 import os
-import sys
 import pickle
 from collections import OrderedDict
 
 import numpy as np
-import matplotlib.pyplot as plt;
-
-plt.ion()
+import matplotlib.pyplot as plt; plt.ion()
 from tqdm import tqdm
 from icecream import ic
 import fcl
 import pyrr
 
-from Planner import MyPlanner
 from ompl_utils import *
 import utils
 
 import sys
-
 # add ompl to sys path
 sys.path.append('OMPL/ompl-1.5.2/py-bindings')
 
@@ -313,7 +308,7 @@ def plan(runTime: float, plannerType, objectiveType, fname: str, param: dict):
 
         # Output the length of the path found
         print(
-            f'\n{algo_name} found solution of path length {path_length:.4f}'
+            f'\n{algo_name} found solution of path length {path_length:.4f} '
             f'with an optimization objective value of {cost:.4f}'
         )
 
@@ -326,55 +321,58 @@ def plan(runTime: float, plannerType, objectiveType, fname: str, param: dict):
     return path_obj
 
 
+def main():
+    pass
+
+
 if __name__ == "__main__":
-    if True:
-        # Create an argument parser
-        parser = argparse.ArgumentParser(description='Optimal motion planning demo program.')
+    # Create an argument parser
+    parser = argparse.ArgumentParser(description='Optimal motion planning demo program.')
 
-        # Add a filename argument
-        parser.add_argument(
-            '-t', '--runtime', type=float, default=10.0,
-            help='(Optional) Specify the runtime in seconds. Defaults to 1 and must be greater than 0.'
+    # Add a filename argument
+    parser.add_argument(
+        '-t', '--runtime', type=float, default=10.0,
+        help='(Optional) Specify the runtime in seconds. Defaults to 1 and must be greater than 0.'
+    )
+    parser.add_argument(
+        '-p', '--planner', default='RRTstar',
+        choices=['BFMTstar', 'BITstar', 'FMTstar', 'InformedRRTstar', 'PRMstar', 'RRTstar', 'SORRTstar'],
+        help='(Optional) Specify the optimal planner to use, defaults to RRTstar if not given.'
+    )
+    parser.add_argument(
+        '-o', '--objective', default='PathLength',
+        choices=['PathClearance', 'PathLength', 'ThresholdPathLength', 'WeightedLengthAndClearanceCombo'],
+        help='(Optional) Specify the optimization objective, defaults to PathLength if not given.'
+    )
+    parser.add_argument(
+        '-f', '--file', default=None,
+        help='(Optional) Specify an output path for the found solution path.'
+    )
+    parser.add_argument(
+        '-i', '--info', type=int, default=0, choices=[0, 1, 2],
+        help='(Optional) Set the OMPL log level. 0 for WARN, 1 for INFO, 2 for DEBUG. Defaults to WARN.')
+
+    parser.add_argument("--seed", help="Random generator seed", type=int, default=42)
+    parser.add_argument("--save", action="store_true", default=True)
+
+    # Parse the arguments
+    args = parser.parse_args()
+
+    # Check that time is positive
+    if args.runtime <= 0:
+        raise argparse.ArgumentTypeError(
+            "argument -t/--runtime: invalid choice: %r (choose a positive number greater than 0)" % (args.runtime,)
         )
-        parser.add_argument(
-            '-p', '--planner', default='RRTstar',
-            choices=['BFMTstar', 'BITstar', 'FMTstar', 'InformedRRTstar', 'PRMstar', 'RRTstar', 'SORRTstar'],
-            help='(Optional) Specify the optimal planner to use, defaults to RRTstar if not given.'
-        )
-        parser.add_argument(
-            '-o', '--objective', default='PathLength',
-            choices=['PathClearance', 'PathLength', 'ThresholdPathLength', 'WeightedLengthAndClearanceCombo'],
-            help='(Optional) Specify the optimization objective, defaults to PathLength if not given.'
-        )
-        parser.add_argument(
-            '-f', '--file', default=None,
-            help='(Optional) Specify an output path for the found solution path.'
-        )
-        parser.add_argument(
-            '-i', '--info', type=int, default=0, choices=[0, 1, 2],
-            help='(Optional) Set the OMPL log level. 0 for WARN, 1 for INFO, 2 for DEBUG. Defaults to WARN.')
 
-        parser.add_argument("--seed", help="Random generator seed", type=int, default=42)
-        parser.add_argument("--save", action="store_true", default=True)
-
-        # Parse the arguments
-        args = parser.parse_args()
-
-        # Check that time is positive
-        if args.runtime <= 0:
-            raise argparse.ArgumentTypeError(
-                "argument -t/--runtime: invalid choice: %r (choose a positive number greater than 0)" % (args.runtime,)
-            )
-
-        # Set the log level
-        if args.info == 0:
-            ou.setLogLevel(ou.LOG_WARN)
-        elif args.info == 1:
-            ou.setLogLevel(ou.LOG_INFO)
-        elif args.info == 2:
-            ou.setLogLevel(ou.LOG_DEBUG)
-        else:
-            ou.OMPL_ERROR("Invalid log-level integer.")
+    # Set the log level
+    if args.info == 0:
+        ou.setLogLevel(ou.LOG_WARN)
+    elif args.info == 1:
+        ou.setLogLevel(ou.LOG_INFO)
+    elif args.info == 2:
+        ou.setLogLevel(ou.LOG_DEBUG)
+    else:
+        ou.OMPL_ERROR("Invalid log-level integer.")
     ###################################################################################################
     # utils.set_random_seed(seed=42)
     runtime_env = {
@@ -382,18 +380,19 @@ if __name__ == "__main__":
         'flappy_bird': 30,
         'window': 30,
         'room': 30,
-        'monza': 500,  # 1800 works
-        'maze': 1000,  # best 1305
-        'tower': 60  #
+        'monza': 300,
+        'maze': 300,
+        'tower': 60
     }
 
     lst = []
     info = {}
-    for i, env_id in tqdm(enumerate(MAP_SE)):
+    for env_id in tqdm(MAP_SE):
         print(f"\n############ {env_id} ############ ")
         map_file = MAPDICT[env_id]
         start, goal = MAP_SE[env_id]
         boundary, blocks = utils.load_map(map_file)
+        # use for post path collision checking for sanity check
         mv = MotionValidator(None, boundary, blocks)
         param = {
             "start": start,
@@ -413,7 +412,7 @@ if __name__ == "__main__":
         path = None
         if print_path is not None:
             path = utils.extract_print_path(print_path)
-            path_dict[env_id] = path
+            path_dict['path'] = path
             collision = False
             for j in range(1, path.shape[0]):
                 s1 = path[j - 1, :]
@@ -421,37 +420,47 @@ if __name__ == "__main__":
                 valid = mv.checkMotion(s1, s2, rad=0.0001, aggressive=False, verbose=True)
                 if not valid:
                     collision = True
-
+            plan_time = t
             goal_reached = sum((path[-1] - goal) ** 2) <= 0.1
             success = (not collision) and goal_reached
             pathlength = utils.get_path_length(path)
 
+            path_dict['plan_time'] = plan_time
             path_dict['collision'] = collision
             path_dict['goal_reached'] =goal_reached
             path_dict['success'] = success
             path_dict['pathlength'] = pathlength
+
+            ic(plan_time)
             ic(collision)
             ic(goal_reached)
             ic(success)
             ic(pathlength)
         print("###################################\n")
-        info[env_id] = path_dict
+        info[env_id] = path_dict.copy()
         path_dict.clear()
 
         # Original Plot
         fig, ax, hb, hs, hg = utils.draw_map(boundary, blocks, start, goal)
         if path is not None:
             ax.plot(path[:, 0], path[:, 1], path[:, 2], 'r-')
-        plt.title(f"Original {env_id} Env")
+        plt.title(f"Original {env_id} Env"
+                  f" using RRT* in {t} sec")
+        plt.show(block=True)
         lst.append((fig, ax, hb, hs, hg))
 
+    # show plot at last
     for p in lst:
         f, a, b, s, g = p
         plt.show(block=True)
 
     if args.save:
-        with open("RRT_star_res.pkl", 'wb') as f:
+        with open("./result/RRT_star_res.pkl", 'wb') as f:
             pickle.dump(info, f)
         # del info
-        with open("RRT_star_res.pkl", 'rb') as f:
+        with open("./result/RRT_star_res.pkl", 'rb') as f:
             info = pickle.load(f)
+
+
+
+
