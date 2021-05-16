@@ -7,7 +7,6 @@ import fcl
 from tqdm import tqdm
 from icecream import ic
 
-import utils
 
 
 class MyPlanner(object):
@@ -19,7 +18,7 @@ class MyPlanner(object):
         self.blocks: np.ndarray = blocks
 
         # Visualize the boundary in original and continuous obs space
-        # utils.showXYZboundary(self.boundary)
+        self.showXYZboundary(grid_boundary=False)
 
         # Init start and goal pos
         self.start_pos = None
@@ -143,7 +142,7 @@ class MyPlanner(object):
                 #     # Perform Continuous Collision Checking
                 #     motion_collide = self.is_motion_collide(current_node, T=action, rad=0.05, blocks=self.blocks)
 
-                if static_collide: # or motion_collide:
+                if static_collide:  # or motion_collide:
                     continue
                 else:
                     # Update next_node
@@ -564,3 +563,13 @@ class MyPlanner(object):
         d2 = start - goal
         cross = np.cross(d1, d2)
         return np.sum(cross)
+
+    def showXYZboundary(self, grid_boundary=False) -> None:
+        if grid_boundary:
+            assert self.grid_boundary is not None,  "grid_boundary not init"
+            boundary = self.grid_boundary.reshape(-1)
+        else:
+            boundary = self.boundary.reshape(-1)
+        print(f"x_boundary: ({boundary[0]}, {boundary[3]})")
+        print(f"y_boundary: ({boundary[1]}, {boundary[4]})")
+        print(f"z_boundary: ({boundary[2]}, {boundary[5]})")
