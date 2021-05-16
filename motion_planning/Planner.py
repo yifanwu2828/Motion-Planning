@@ -283,6 +283,10 @@ class MyPlanner(object):
                             else:
                                 h_j = self.heuristic_fn(j, grid_goal, dist_type=distType)
 
+                            # Tie Break
+                            # p = 0.0001
+                            # h_j *= (1.0 + p)
+
                             f_j = g_j + eps * h_j
                             if state_j in OPEN.keys():
                                 # Update Update priority of j
@@ -431,6 +435,13 @@ class MyPlanner(object):
                 dist = np.linalg.norm((node - goal), ord=np.inf) + np.linalg.norm((node - goal), ord=-np.inf)
             else:
                 raise ValueError("Please provide valid dist_type or custom heuristic function")
+        return dist
+
+    @staticmethod
+    @jit(nopython=True, cache=True, fastmath=True)
+    def manhattan_distance(node, goal) -> np.ndarray:
+        """ Use as a heuristic function in heuristic_fn"""
+        dist = np.sum(np.sqrt((node - goal) ** 2))
         return dist
 
     @staticmethod

@@ -100,7 +100,7 @@ if __name__ == '__main__':
                 collision = info[f'{env_id}_{h}_collision']
                 success = info[f'{env_id}_{h}_success']
                 pathlength = info[f'{env_id}_{h}_pathlength']
-                print(f"\n<--------------{env_id} Heuristic:{h} {h_dict[h]}---------------->")
+                print(f"<--------------{env_id} Heuristic:{h} {h_dict[h]}---------------->")
                 ic(runtime)
                 ic(max_node)
                 ic(collision)
@@ -121,10 +121,10 @@ if __name__ == '__main__':
         Heuristic_least_node = h_dict[int(np.argmin(np.array(max_node_lst))) + 1]
         Heuristic_least_pathlength = h_dict[int(np.argmin(np.array(pathlength_lst)))+ 1]
 
-        ic(runtime_lst)
+        # ic(runtime_lst)
         ic(max_node_lst)
         ic(pathlength_lst)
 
-        ic(Heuristic_least_runtime)
+        # ic(Heuristic_least_runtime) # runtime are accurate since I only use numba to speed up euclidean Distance
         ic(Heuristic_least_node)
         ic(Heuristic_least_pathlength)

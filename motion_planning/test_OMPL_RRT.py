@@ -376,13 +376,13 @@ if __name__ == "__main__":
     ###################################################################################################
     # utils.set_random_seed(seed=42)
     runtime_env = {
-        'single_cube': 5,
-        'flappy_bird': 30,
-        'window': 30,
-        'room': 30,
-        'monza': 300,
-        'maze': 300,
-        'tower': 60
+        'single_cube': 10,  # minimal 1  guarantee 1   current 10
+        'flappy_bird': 60,  # minimal 1  guarantee 3   current 30
+        'window': 60,       # minimal 1  guarantee 3   current 30
+        'room': 800,         # minimal 1  guarantee 300  current 30
+        'monza': 1000,      # minimal 280  guarantee 500
+        'maze': 1000,       # minimal 300  guarantee 500
+        'tower': 300        # minimal 1  guarantee 60
     }
 
     lst = []

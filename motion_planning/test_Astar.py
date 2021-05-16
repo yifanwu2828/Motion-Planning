@@ -100,7 +100,6 @@ def single_test(env_id: str, rad, eps=2, res=0.1, distType: int = 2, verbose=Tru
 
 def multi_test_single_env(env_id: str, param: dict, verbose=True, render=False):
     info = {}
-    # for distType in range(1, 5):
     for distType in range(1, 5):
         print(f"\n###### {distType} ######")
         single_result = single_test(
@@ -198,7 +197,7 @@ if __name__ == '__main__':
     print(np.__version__)
 
     param = {
-        'eps': 1.0,
+        'eps': 2.0,
         'res': 0.1,
         'rad': 0.01,
     }
@@ -211,7 +210,6 @@ if __name__ == '__main__':
         info = multi_test_single_env(env_id=env_id, param=param, verbose=True, render=False)
         info_lst.append(info)
 
-    args.save = True
     if args.save:
         with open(f"./result/A_star_res_eps_{param['eps']}.pkl", 'wb') as f:
             pickle.dump(info_lst, f)
