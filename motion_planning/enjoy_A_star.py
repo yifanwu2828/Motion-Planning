@@ -49,7 +49,7 @@ if __name__ == '__main__':
         help="Show ALL Env with 4 heuristic plots(28 plots in total) with render = True",
     )
     parser.add_argument(
-        "--eps", help="epsilon of A*", type=float, default=1.0,
+        "--eps", help="epsilon of A*", type=float, default=2.0,
         choices=[1.0, 1.5, 2.0]
     )
     parser.add_argument(
@@ -80,6 +80,8 @@ if __name__ == '__main__':
         raise ValueError("Valid eps are [1.0, 1.5, 2.0]")
 
 
+    ic(args.eps)
+
     for idx, info in enumerate(A):
         env_id = inv_dict[idx]
         map_file = MAPDICT[env_id]
@@ -91,15 +93,15 @@ if __name__ == '__main__':
         pathlength_lst = []
         for h in range(1, 5):
             path = info[f'{env_id}_{h}_path']
-            runtime_lst.append(round(info[f'{env_id}_{h}_runtime'], 3))
+            runtime_lst.append(round(info[f'{env_id}_{h}_runtime'], 2))
             max_node_lst.append(info[f'{env_id}_{h}_max_node'])
-            pathlength_lst.append(info[f'{env_id}_{h}_pathlength'])
+            pathlength_lst.append(round(info[f'{env_id}_{h}_pathlength'], 2))
             if args.verbose:
-                runtime = round(info[f'{env_id}_{h}_runtime'], 3)
+                runtime = round(info[f'{env_id}_{h}_runtime'], 2)
                 max_node = info[f'{env_id}_{h}_max_node']
                 collision = info[f'{env_id}_{h}_collision']
                 success = info[f'{env_id}_{h}_success']
-                pathlength = info[f'{env_id}_{h}_pathlength']
+                pathlength = round(info[f'{env_id}_{h}_pathlength'], 2)
                 print(f"<--------------{env_id} Heuristic:{h} {h_dict[h]}---------------->")
                 ic(runtime)
                 ic(max_node)

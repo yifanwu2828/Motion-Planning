@@ -56,7 +56,10 @@ python3 enjoy_A_star.py  # The deafult heuristic is 2 (euclidean distance)
 
 
 # with --showall plots 4 type of heuristic in each env(28 plots in total)                         
-python3 enjoy_A_star.py --showall  
+python3 enjoy_A_star.py --showall
+
+# You own test can be run with
+python3 run_Astar.py  
 ```
 
 
@@ -64,6 +67,9 @@ Enjoy RRT* Algorithm by running following script:
 ```
 cd motion_planning
 python3 enjoy_RRT_star.py  
+
+# You own test can be run with
+python3 run_OMPL_RRT.py
 ```
 
 ## Sources

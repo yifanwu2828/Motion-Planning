@@ -284,8 +284,8 @@ class MyPlanner(object):
                                 h_j = self.heuristic_fn(j, grid_goal, dist_type=distType)
 
                             # Tie Break
-                            # p = 0.0001
-                            # h_j *= (1.0 + p)
+                            p = 0.0001
+                            h_j *= (1.0 + p)
 
                             f_j = g_j + eps * h_j
                             if state_j in OPEN.keys():
@@ -422,7 +422,8 @@ class MyPlanner(object):
         else:
             if dist_type == 1 or dist_type == typeDict[1]:
                 ''' Manhattan Distance '''
-                dist = np.linalg.norm((node - goal), ord=1)
+                # dist = np.linalg.norm((node - goal), ord=1)
+                dist = self.manhattan_distance(node, goal)
             elif dist_type == 2 or dist_type == typeDict[2]:
                 ''' Euclidean Distance '''
                 # dist = np.linalg.norm((node - goal), ord=2)
