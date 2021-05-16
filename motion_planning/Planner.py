@@ -18,7 +18,7 @@ class MyPlanner(object):
         self.blocks: np.ndarray = blocks
 
         # Visualize the boundary in original and continuous obs space
-        self.showXYZboundary(grid_boundary=False)
+        # self.showXYZboundary(grid_boundary=False)
 
         # Init start and goal pos
         self.start_pos = None

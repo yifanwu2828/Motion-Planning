@@ -185,7 +185,7 @@ if __name__ == '__main__':
     )
     args = parser.parse_args()
     seed = args.seed
-    print(np.__version__)
+    print(f"np version: {np.__version__}")
 
     param = {
         'eps': 2.0,
@@ -193,7 +193,7 @@ if __name__ == '__main__':
         'rad': 0.01,
     }
 
-    print(f"eps: {param['eps']}")
+    ic(param)
 
     info_lst = []
     for env_id in tqdm(MAP_SE.keys()):
