@@ -10,8 +10,10 @@
 ## Introduction
 This is a Python implementation of Motion Planing which includes two parts
 * Own implement of Search-based Motion Planning Algorithm:
-    1. Weighted A* with epsilon consistence
-    2. One-to-many discrete collision/distance checking using 
+    1. Weighted A* with epsilon consistence 
+       (utilize an Indexed Priority Queue from [pqdict](https://pqdict.readthedocs.io/en/latest/intro.html)) 
+    2. A* Algorithm which is basically Weighted A* with epsilon 1
+    3. One-to-many discrete collision/distance checking using 
        [python-fcl](https://github.com/BerkeleyAutomation/python-fcl)
        1. Continues collision checking required to perform in one-to-one manner 
        2. The time complexity will be O(n^2)
@@ -35,12 +37,13 @@ Please follow the instruction in [download](https://ompl.kavrakilab.org/download
 
 ## 3rd Party Package explanation
 ```
+pip install pqdict     # indexed priority queue with O(log n) updating of any item’s priority level
 pip install tqdm       # progress bar (which might not be very useful in this case)
 pip install icecream   # use for print output
 pip install numba      # use for speed up the calculation of cost and heuristic function
-pip install pyrr       # use for line segment collision checking 
-pip install python-pcl # use for one-to-many collision checking
-                       # and continous collison checking
+pip install pyrr       # use for line segment collision checking in RRT*
+pip install python-pcl # use for one-to-many collision checking 
+                       # and continous collison checking in A* and RRT*
 ```
 
 ## Example
@@ -78,3 +81,5 @@ python3 run_OMPL_RRT.py
 [OMPL](https://ompl.kavrakilab.org/)
 
 [python-fcl](https://github.com/BerkeleyAutomation/python-fcl)
+
+[pqdict](https://pqdict.readthedocs.io/en/latest/intro.html)
