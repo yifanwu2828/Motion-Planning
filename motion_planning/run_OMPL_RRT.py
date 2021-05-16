@@ -1,9 +1,11 @@
 import argparse
 import os
 import pickle
+from functools import lru_cache
 from collections import OrderedDict
 
 import numpy as np
+from numba import jit
 import matplotlib.pyplot as plt; plt.ion()
 from tqdm import tqdm
 from icecream import ic
@@ -96,19 +98,19 @@ class StateValidityChecker(ob.StateValidityChecker):
 
     def isValid(self, state):
         """State Validation Check"""
-        bound = self.boundary.flatten()
+        bound: np.ndarray = self.boundary.flatten()
         # check if state is inbound
         cond_inbound = (
-            bound[0] <= state[0] < bound[3],
-            bound[1] <= state[1] < bound[4],
-            bound[2] <= state[2] < bound[5],
+            bound[0] < state[0] < bound[3],
+            bound[1] < state[1] < bound[4],
+            bound[2] < state[2] < bound[5],
         )
 
         valid = True
         if all(cond_inbound):
-            node = np.array([state[0], state[1], state[2]])
+            node = np.array([state[0], state[1], state[2]], dtype=np.float64)
             current_obj = fcl.CollisionObject(fcl.Sphere(self.rad), fcl.Transform(node))
-            req = fcl.CollisionRequest(enable_contact=False)
+            req = fcl.CollisionRequest(enable_contact=True)
             cdata = fcl.CollisionData(request=req, result=fcl.CollisionResult())
             self.manager.collide(current_obj, cdata, fcl.defaultCollisionCallback)
 
@@ -116,11 +118,13 @@ class StateValidityChecker(ob.StateValidityChecker):
             if collide:
                 valid = False
         else:
+            # not in bound
             valid = False
 
         return valid
 
     @staticmethod
+    @jit(nopython=True, cache=True, fastmath=True)
     def get_centroid(block: np.ndarray):
         """ Find centroid of blocks"""
         block = block.reshape(-1)
@@ -214,6 +218,7 @@ class MotionValidator(ob.MotionValidator):
         return is_valid
 
     @staticmethod
+    @jit(nopython=True, cache=True, fastmath=True)
     def get_XYZ_length(block: np.ndarray):
         """ Find side length of block """
         block = block.reshape(-1)
@@ -223,6 +228,7 @@ class MotionValidator(ob.MotionValidator):
         return x_len, y_len, z_len
 
     @staticmethod
+    @jit(nopython=True, cache=True, fastmath=True)
     def get_centroid(block: np.ndarray):
         """ Find centroid of blocks"""
         block = block.reshape(-1)
@@ -353,7 +359,7 @@ if __name__ == "__main__":
         help='(Optional) Set the OMPL log level. 0 for WARN, 1 for INFO, 2 for DEBUG. Defaults to WARN.')
 
     parser.add_argument("--seed", help="Random generator seed", type=int, default=42)
-    parser.add_argument("--save", action="store_true", default=True)
+    parser.add_argument("--save", action="store_true", default=False)
 
     # Parse the arguments
     args = parser.parse_args()

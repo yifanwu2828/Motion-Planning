@@ -1,7 +1,6 @@
 import argparse
 import os
 
-import re
 import time
 import pickle
 from collections import OrderedDict
@@ -11,7 +10,6 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt; plt.ion()
 from icecream import ic
 
-import sys
 from Planner import MyPlanner
 import utils
 
@@ -27,14 +25,6 @@ MAP_SE = OrderedDict(
         'tower': (np.array([2.5, 4.0, 0.5]), np.array([4.0, 2.5, 19.5])),
     }
 )
-
-
-def calc_cost(grid_path, cost_grid, res):
-    cost = 0.0
-    for i in range(grid_path.shape[0]):
-        state = tuple(grid_path[i, :])
-        cost += cost_grid[state]
-    return cost * res
 
 
 def single_test(env_id: str, rad, eps=2, res=0.1, distType: int = 2, verbose=True, render=False, render_grid=False):
@@ -57,7 +47,7 @@ def single_test(env_id: str, rad, eps=2, res=0.1, distType: int = 2, verbose=Tru
         eps=eps,
         res=res,
         distType=distType)
-    runtime = time.time() - t1
+    runtime = round((time.time() - t1), 3)
     utils.toc(t_start=t1, name=env_id)
 
     # Evaluation: one-to-one Continuous Collision Checking
@@ -72,6 +62,7 @@ def single_test(env_id: str, rad, eps=2, res=0.1, distType: int = 2, verbose=Tru
     single_test_result['pathlength'] = pathlength
     single_test_result['path'] = path
     if verbose:
+        ic(runtime)
         ic(max_node)
         ic(collision)
         ic(success)
@@ -114,7 +105,7 @@ def multi_test_single_env(env_id: str, param: dict, verbose=True, render=False):
     return info
 
 
-def test_all_show_last():
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-r", "--render", help="Visualize Env", action="store_true", default=True)
     parser.add_argument("-res", help="Resolution", type=float, default=0.1)
@@ -125,11 +116,11 @@ def test_all_show_last():
         help="Verbose mode (False: no output, True: INFO)"
     )
     args = parser.parse_args()
-    seed = args.seed
     param = {
         'eps': 2,
         'res': 0.1,
-        'rad': 0.1,
+        'rad':
+            0.1,
     }
     lst = []
     info = {}

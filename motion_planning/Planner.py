@@ -85,9 +85,9 @@ class MyPlanner(object):
         # init blocks collision objs as Box
         for idx, blk in enumerate(blocks):
             # Side length of x,y,z
-            x, y, z = utils.get_XYZ_length(blk)
+            x, y, z = self.get_XYZ_length(blk)
             # Centroid position of the block
-            centroid = utils.get_centroid(block=blk)
+            centroid = self.get_centroid(block=blk)
             # Geometry of collision obj
             geom_box = fcl.Box(x, y, z)
             # Transformation(no Rotation only Translation)
@@ -189,7 +189,7 @@ class MyPlanner(object):
         self.eps = eps
         self.rad = rad
         # Convert map in continuous space to Discrete 3D Grid
-        grid_env = utils.make_grid_env(self.boundary, self.blocks, start, goal, res=res)
+        grid_env = self.make_grid_env(self.boundary, self.blocks, start, goal, res=res)
         grid_world, grid_boundary, grid_block, grid_start, grid_goal = grid_env
 
         self.grid_world: np.ndarray = grid_world
@@ -283,9 +283,13 @@ class MyPlanner(object):
                             else:
                                 h_j = self.heuristic_fn(j, grid_goal, dist_type=distType)
 
-                            # Tie Break
+                            # Simple Tie Break
                             p = 0.0001
                             h_j *= (1.0 + p)
+
+                            # Works better if env without complex blocks and direct path exists
+                            # cross = self.tie_break_factor(grid_start, grid_goal, j)
+                            # h_j += cross * 0.001
 
                             f_j = g_j + eps * h_j
                             if state_j in OPEN.keys():
@@ -330,6 +334,26 @@ class MyPlanner(object):
             self.blocks[k, 1] <= next_point[1] <= self.blocks[k, 4],  # [y_min, y_max]
             self.blocks[k, 2] <= next_point[2] <= self.blocks[k, 5],  # [z_min, z_max]
         ])
+
+    @staticmethod
+    @jit(nopython=True, cache=True, fastmath=True)
+    def get_XYZ_length(block: np.ndarray):
+        """ Find side length of block """
+        block = block.reshape(-1)
+        x_len = abs(block[0] - block[3])
+        y_len = abs(block[1] - block[4])
+        z_len = abs(block[2] - block[5])
+        return x_len, y_len, z_len
+
+    @staticmethod
+    @jit(nopython=True, cache=True, fastmath=True)
+    def get_centroid(block: np.ndarray):
+        """ Find centroid of blocks"""
+        block = block.reshape(-1)
+        block_x = (block[3] + block[0]) / 2.0
+        block_y = (block[4] + block[1]) / 2.0
+        block_z = (block[5] + block[2]) / 2.0
+        return block_x, block_y, block_z
 
     def is_static_collide(self, node: np.ndarray, rad, verbose=False) -> bool:
         """ Managed one to many discrete collision checking """
@@ -423,10 +447,12 @@ class MyPlanner(object):
             if dist_type == 1 or dist_type == typeDict[1]:
                 ''' Manhattan Distance '''
                 # dist = np.linalg.norm((node - goal), ord=1)
+                # use own implementation of manhattan_distance to work with numba and speed up
                 dist = self.manhattan_distance(node, goal)
             elif dist_type == 2 or dist_type == typeDict[2]:
                 ''' Euclidean Distance '''
                 # dist = np.linalg.norm((node - goal), ord=2)
+                # use own implementation of euclidean_distance to work with numba and speed up
                 dist = self.euclidean_distance(node, goal)
             elif dist_type == 3 or dist_type == typeDict[3]:
                 ''' Diagonal Distance '''
@@ -440,23 +466,76 @@ class MyPlanner(object):
 
     @staticmethod
     @jit(nopython=True, cache=True, fastmath=True)
-    def manhattan_distance(node, goal) -> np.ndarray:
+    def manhattan_distance(node: np.ndarray, goal: np.ndarray) -> np.ndarray:
         """ Use as a heuristic function in heuristic_fn"""
         dist = np.sum(np.sqrt((node - goal) ** 2))
         return dist
 
     @staticmethod
     @jit(nopython=True, cache=True, fastmath=True)
-    def euclidean_distance(node, goal) -> np.ndarray:
+    def euclidean_distance(node: np.ndarray, goal: np.ndarray) -> np.ndarray:
         """ Use as a heuristic function in heuristic_fn"""
         dist = np.sqrt(np.sum((node - goal) ** 2))
         return dist
 
     @staticmethod
-    def custom_h_fn(node, goal) -> np.ndarray:
+    def custom_h_fn(node: np.ndarray, goal: np.ndarray) -> np.ndarray:
         """ User Defined heuristic function """
         dist = np.linalg.norm((node - goal), ord=np.inf) + 0.7 * np.linalg.norm((node - goal), ord=-np.inf)
         return dist
+
+    @staticmethod
+    def make_grid_env(boundary: np.ndarray, blocks: np.ndarray, start: np.ndarray, goal: np.ndarray, res: float = 0.1):
+        """
+        Discretize the world into 3D Grid
+            Occupied cells are marked with 1 and free cells are marked as zero
+        :param boundary: boundary
+        :param blocks: obstacles
+        :param start: start position in (x, y, z)
+        :param goal: goal position in (x, y, z)
+        :param res: resolution
+        :return: 3D Grid map, discrete start pos, discrete goal pos
+        """
+        # Discretize start and goal
+        grid_start = np.ceil(((start - boundary[0, :3]) / res) + 1).astype('int')
+        grid_goal = np.ceil(((goal - boundary[0, :3]) / res) + 1).astype('int')
+        # ic(grid_start)
+        # ic(grid_goal)
+
+        # Discrete 3D grid dimensions.
+        dim = np.ceil(((boundary[0, 3:6] - boundary[0, 0:3]) / res) + 1).astype('int')
+        # Initialize the grid world
+        grid_world = np.zeros(tuple(dim))
+        # Initialize the boundary walls
+        grid_world[0, :, :] = 1
+        grid_world[:, 0, :] = 1
+        grid_world[:, :, 0] = 1
+
+        grid_boundary = boundary.copy()
+        grid_boundary[0, 3] = (grid_boundary[0, 3] + abs(grid_boundary[0, 0])) / res + 1
+        grid_boundary[0, 4] = (grid_boundary[0, 4] + abs(grid_boundary[0, 1])) / res + 1
+        grid_boundary[0, 5] = (grid_boundary[0, 5] + abs(grid_boundary[0, 2])) / res + 1
+        grid_boundary[0, 0:3] = 0
+        grid_boundary = grid_boundary.astype('int')
+        # ic(grid_boundary)
+
+        # Convert blocks to grid coordinates
+        grid_block = blocks.copy()
+        grid_block[:, 0:3] -= boundary[0, :3]
+        grid_block[:, 3:6] -= boundary[0, :3]
+        grid_block[:, :6] = np.ceil((grid_block[:, :6] / res) + 1)
+        grid_block = grid_block.astype('int')
+        # ic(grid_block)
+
+        # Initialize blocks in grid world
+        for i in range(blocks.shape[0]):
+            grid_world[
+            grid_block[i, 0] - 1: grid_block[i, 3] + 1,  # [x_min x_max]
+            grid_block[i, 1] - 1: grid_block[i, 4] + 1,  # [y_min y_max]
+            grid_block[i, 2] - 1: grid_block[i, 5] + 1,  # [z_min z_max]
+            ] = 1
+
+        return grid_world, grid_boundary, grid_block, grid_start, grid_goal
 
     def path_recon(self, grid_start: np.ndarray, grid_goal: np.ndarray, res: float) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -475,3 +554,13 @@ class MyPlanner(object):
         path = (path - 1) * res + self.boundary[0, :3]
         path = np.flip(path, axis=0)
         return path, grid_path
+
+    @staticmethod
+    def tie_break_factor(start, goal, node):
+        """
+        Break ties to prefer paths that are along the straight line from the starting point to the goal
+        """
+        d1 = node - goal
+        d2 = start - goal
+        cross = np.cross(d1, d2)
+        return np.sum(cross)
