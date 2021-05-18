@@ -74,6 +74,9 @@ python3 enjoy_RRT_star.py
 # You own test can be run with
 python3 run_OMPL_RRT.py
 ```
+Test results are saved under `Motion-Planning/motion_planning/result/`
+
+Image visulization of the path in each env can be found within the same folder 
 
 ## Sources
 [ECE 276B Motion Planning](motion_planning/ECE276B_PR2.pdf)
