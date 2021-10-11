@@ -6,6 +6,7 @@
 * [Prerequisites](#Prerequisites)
 * [Example](#Example)
 * [Sources](#Sources)
+* [Plots](#Plots)
 
 ## Introduction
 This is a Python implementation of Motion Planing which includes two parts
@@ -86,3 +87,16 @@ Image visulization of the path in each env can be found within the same folder
 [python-fcl](https://github.com/BerkeleyAutomation/python-fcl)
 
 [pqdict](https://pqdict.readthedocs.io/en/latest/intro.html)
+
+## Plots
+* A Star & RRT
+
+
+<img src="./motion_planning/result/A_2/sc_2.png" alt="drawing" width="400" > <img src="./motion_planning/result/RRT/RRT_singlecube_1.png" alt="drawing" width="400" >
+<img src="./motion_planning/result/A_2/fb_2.png" alt="drawing" width="400" > <img src="./motion_planning/result/RRT/RRT_flappybird_1.png" alt="drawing" width="400" >
+<img src="./motion_planning/result/A_2/maze_2.png" alt="drawing" width="400" > <img src="./motion_planning/result/RRT/RRT_maze_1.png" alt="drawing" width="400" >
+<img src="./motion_planning/result/A_2/monza_2.png" alt="drawing" width="400" > <img src="./motion_planning/result/RRT/RRT_monze_1.png" alt="drawing" width="400" >
+<img src="./motion_planning/result/A_2/room_2.png" alt="drawing" width="400" > <img src="./motion_planning/result/RRT/RRT_room_1.png" alt="drawing" width="400" >
+<img src="./motion_planning/result/A_2/tower_2.png" alt="drawing" width="400" > <img src="./motion_planning/result/RRT/RRT_tower_1.png" alt="drawing" width="400" >
+<img src="./motion_planning/result/A_2/window_2.png" alt="drawing" width="400" > <img src="./motion_planning/result/RRT/RRT_window_2.png" alt="drawing" width="400" >
+
